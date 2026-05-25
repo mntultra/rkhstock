@@ -14,6 +14,7 @@ import DispenseForm from './features/dispense/DispenseForm'
 import ReceiveForm from './features/receive/ReceiveForm'
 import StockBalancePage from './features/stock/StockBalancePage'
 import NotificationsPage from './features/notifications/NotificationsPage'
+import ProductManagementPage from './features/products/ProductManagementPage'
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
           <Route path="/dispense" element={<DispenseForm />} />
           <Route path="/receive" element={<ReceiveForm />} />
           <Route path="/stock" element={<StockBalancePage />} />
+          <Route path="/products" element={<ProductManagementPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
         </Route>
 

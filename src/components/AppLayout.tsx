@@ -10,7 +10,8 @@ import {
   Bell,
   LogOut,
   Menu,
-  X
+  X,
+  Pill
 } from 'lucide-react';
 
 export default function AppLayout() {
@@ -38,6 +39,7 @@ export default function AppLayout() {
     { name: 'จ่ายยา (Dispense)', path: '/dispense', icon: <PackageMinus size={20} /> },
     { name: 'รับยา (Receive)', path: '/receive', icon: <PackagePlus size={20} /> },
     { name: 'สต๊อกคงเหลือ', path: '/stock', icon: <Boxes size={20} /> },
+    { name: 'จัดการข้อมูลยา', path: '/products', icon: <Pill size={20} /> },
     { name: 'แจ้งเตือน', path: '/notifications', icon: <Bell size={20} /> },
   ];
 

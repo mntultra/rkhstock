@@ -10,16 +10,30 @@ export default function Dashboard() {
     const fetchStats = async () => {
       // 1. ดึงจำนวนยาที่มีสต๊อก
       const { count: itemsCount } = await supabase.from('stock_balances').select('*', { count: 'exact', head: true }).gt('current_qty', 0);
-      
+
       // 2. ดึงจำนวนการแจ้งเตือนวิกฤต (อายุ < 30 วัน)
       const { count: alertsCount } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('alert_level', 'CRITICAL').eq('is_read', false);
-      
-      // 3. (Mock) ดึงการเคลื่อนไหว
+
+      // 3. ดึงยอดรับเข้าในเดือนนี้ (RECEIVE)
+      const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const { count: receiveCount } = await supabase
+        .from('stock_movements')
+        .select('*', { count: 'exact', head: true })
+        .eq('movement_type', 'RECEIVE')
+        .gte('created_at', startOfMonth);
+
+      // 4. ดึงยอดจ่ายออกในเดือนนี้ (DISPENSE)
+      const { count: dispenseCount } = await supabase
+        .from('stock_movements')
+        .select('*', { count: 'exact', head: true })
+        .eq('movement_type', 'DISPENSE')
+        .gte('created_at', startOfMonth);
+
       setStats({
         totalItems: itemsCount || 0,
         criticalAlerts: alertsCount || 0,
-        recentReceives: 15, // TODO: Count from movements
-        recentDispenses: 42, // TODO: Count from movements
+        recentReceives: receiveCount || 0,
+        recentDispenses: dispenseCount || 0,
       });
     };
     fetchStats();
@@ -31,7 +45,7 @@ export default function Dashboard() {
         <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">ภาพรวมระบบ (Dashboard)</h1>
         <p className="text-gray-500 mt-1">สรุปข้อมูลคลังยาย่อย ณ ปัจจุบัน</p>
       </div>
-      
+
       {/* สถิติ 4 ช่อง */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 transition-transform hover:-translate-y-1 hover:shadow-md">
@@ -41,11 +55,13 @@ export default function Dashboard() {
             <p className="text-3xl font-extrabold text-gray-800">{stats.totalItems}</p>
           </div>
         </div>
-        
+
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 transition-transform hover:-translate-y-1 hover:shadow-md">
           <div className="p-4 bg-red-50 text-red-600 rounded-2xl shadow-inner"><AlertTriangle size={28} /></div>
           <div>
-            <p className="text-sm text-red-500 font-bold mb-1">ยาใกล้วิกฤต (<30วัน)</p>
+            <p className="text-sm text-red-500 font-bold mb-1">
+              ยาใกล้วิกฤต (&lt; 30 วัน)
+            </p>
             <p className="text-3xl font-extrabold text-red-700">{stats.criticalAlerts}</p>
           </div>
         </div>
