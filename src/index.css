@@ -1,1 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&display=swap');
+
 @import "tailwindcss";
+
+@theme {
+  --font-sans: 'Outfit', 'Sarabun', system-ui, -apple-system, sans-serif;
+  
+  /* Overwrite Tailwind Blue (Primary Theme Color) with Olive Green (เขียวมะกอก) */
+  --color-blue-50: #f6f7f2;
+  --color-blue-100: #e8ecdc;
+  --color-blue-200: #cfd8b9;
+  --color-blue-300: #b1c192;
+  --color-blue-400: #8fa567;
+  --color-blue-500: #708649;
+  --color-blue-600: #596d34;
+  --color-blue-700: #425223;
+  --color-blue-800: #2d3816;
+  --color-blue-900: #1a220b;
+
+  /* Overwrite Tailwind Emerald (Secondary Theme Color) with Sage / Soft Olive Green */
+  --color-emerald-50: #f7f9f3;
+  --color-emerald-100: #e7ecdb;
+  --color-emerald-200: #cfd9b9;
+  --color-emerald-300: #b0bf90;
+  --color-emerald-400: #8da463;
+  --color-emerald-500: #6d8544;
+  --color-emerald-600: #546b30;
+  --color-emerald-700: #3f5221;
+  --color-emerald-800: #2c3815;
+  --color-emerald-900: #19210a;
+
+  /* Premium minimalist shadows */
+  --shadow-sm: 0 2px 8px rgba(45, 56, 22, 0.04);
+  --shadow-md: 0 8px 24px rgba(45, 56, 22, 0.06);
+  --shadow-lg: 0 16px 40px rgba(45, 56, 22, 0.09);
+  --shadow-xl: 0 24px 60px rgba(45, 56, 22, 0.12);
+}
+
+/* Base resets & layout styling */
+html, body {
+  background-color: #f8faf5;
+  color: #232c12;
+  font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Custom premium scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f8faf5;
+}
+::-webkit-scrollbar-thumb {
+  background: #cfd8b9;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b1c192;
+}
+
+/* Beautiful micro-animations & transitions */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 250ms;
+}
+
+/* Premium input focus animation */
+input, select {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+input:focus, select:focus {
+  transform: translateY(-1px);
+}
+
+/* Blob Animation for Login Screen */
+@keyframes blob {
+  0% { transform: translate(0px, 0px) scale(1); }
+  33% { transform: translate(30px, -50px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.95); }
+  100% { transform: translate(0px, 0px) scale(1); }
+}
+
+.animate-blob {
+  animation: blob 8s infinite alternate ease-in-out;
+}
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
