@@ -1,32 +1,249 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import { formatDate } from '@/utils/dateUtils';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase'; // ปรับ Path ให้ตรงกับโปรเจกต์ของคุณ
+import { supabase } from '@/lib/supabase';
+
+// ==========================================
+// Constants
+// ==========================================
+const PRINT_CONFIG = {
+  MAX_UNITS_PER_PAGE: 32,
+  MAIN_HEADER_UNITS: 6,
+  GROUP_HEADER_UNITS: 2,
+  ITEM_UNITS: 1.1,
+  SIGNATURE_UNITS: 10,
+  FALLBACK_TEXT: '.............................................',
+};
 
 // ==========================================
 // Types
 // ==========================================
-type RequisitionItem = {
-  id: string;
-  product_id: string;
-  qty: number;         // จำนวนขอเบิก
-  dispensed_qty?: number; // จำนวนจ่ายจริง (ถ้ามี)
-  product: {
-    drug_code: string;
-    generic_name: string;
-    unit_id: { name: string };
-  };
+type ProductDosageForm = { name_en: string; abbreviation?: string | null };
+type ProductUnit = { name: string };
+type ProductInfo = {
+  drug_code: string;
+  generic_name: string;
+  trade_name?: string | null;
+  is_cold_storage?: boolean;
+  is_high_alert?: boolean;
+  master_units?: ProductUnit;
+  master_dosage_forms?: ProductDosageForm;
 };
 
-type RequisitionDoc = {
+export type RequisitionItem = {
+  id: string;
+  product_id: string;
+  qty: number;
+  dispensed_qty?: number;
+  pack_size?: number;
+  unit_name?: string;
+  remarks?: string;
+  substock_qty?: number;
+  usage_rate?: number;
+  product: ProductInfo;
+};
+
+export type GroupedRequisitionItem = RequisitionItem & {
+  _groupedDosageForm: string;
+};
+
+export type RequisitionDoc = {
   id: string;
   doc_no: string;
   doc_date: string;
   requester_id: string;
   approver_id: string;
   requester_name?: string;
+  requester_position?: string;
   approver_name?: string;
-  items: RequisitionItem[];
+  approver_position?: string;
+  receiver_name?: string;
+  remarks?: string;
+  items: GroupedRequisitionItem[];
 };
+
+export type PageLayout = {
+  pageNumber: number;
+  itemsByGroup: Record<string, GroupedRequisitionItem[]>;
+  isLastPage: boolean;
+  hasMainHeader: boolean;
+};
+
+// ==========================================
+// Custom Hooks
+// ==========================================
+function useRequisitionPrintData(id: string | undefined) {
+  const [data, setData] = useState<RequisitionDoc | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchDoc = async () => {
+      if (!id) return;
+      setIsLoading(true);
+
+      try {
+        // ดึงหัวเอกสาร
+        const { data: docData, error: docError } = await supabase
+          .from('requisitions')
+          .select(`
+            *,
+            requester:officers!requester_id(full_name, position),
+            approver:officers!approver_id(full_name, position)
+          `)
+          .eq('id', id)
+          .single();
+
+        if (docError) throw docError;
+
+        // ดึงรายการเวชภัณฑ์
+        const { data: itemsData, error: itemsError } = await supabase
+          .from('requisition_items')
+          .select(`
+            id, qty, product_id, pack_size, unit_name, remarks, substock_qty, usage_rate,
+            product:products (
+              drug_code, generic_name, trade_name, is_cold_storage, is_high_alert,
+              master_units(name:unit_name),
+              master_dosage_forms(name_en, abbreviation)
+            )
+          `)
+          .eq('requisition_id', id);
+
+        if (itemsError) throw itemsError;
+
+        // ดึงผู้รับของจาก default_officers
+        const { data: defaultOfficersData } = await supabase
+          .from('default_officers')
+          .select('role_key, officer:officers!user_id(full_name)');
+
+        let receiverName = PRINT_CONFIG.FALLBACK_TEXT;
+        if (defaultOfficersData) {
+          const receiver = defaultOfficersData.find(d => d.role_key === 'receiver');
+          if (receiver && receiver.officer) {
+            receiverName = (receiver.officer as any).full_name;
+          }
+        }
+
+        // Process dosage form grouping
+        const processedItems: GroupedRequisitionItem[] = (itemsData || []).map((item: any) => {
+          let dosageForm = item.product?.master_dosage_forms?.name_en || 'อื่นๆ (Others)';
+          if (item.product?.is_cold_storage && item.product?.is_high_alert) {
+            dosageForm += ' + COLD + HAD';
+          } else if (item.product?.is_cold_storage) {
+            dosageForm += ' + COLD';
+          } else if (item.product?.is_high_alert) {
+            dosageForm += ' + HAD';
+          }
+          return { ...item, _groupedDosageForm: dosageForm } as GroupedRequisitionItem;
+        });
+
+        // Sort items by dosage form then generic name
+        const sortedItems = processedItems.sort((a, b) => {
+          const dfA = a._groupedDosageForm;
+          const dfB = b._groupedDosageForm;
+          if (dfA !== dfB) return dfA.localeCompare(dfB);
+          
+          const nameA = a.product?.generic_name || '';
+          const nameB = b.product?.generic_name || '';
+          return nameA.localeCompare(nameB);
+        });
+
+        if (isMounted) {
+          setData({
+            ...docData,
+            requester_name: (docData.requester as any)?.full_name || PRINT_CONFIG.FALLBACK_TEXT,
+            requester_position: (docData.requester as any)?.position || PRINT_CONFIG.FALLBACK_TEXT,
+            approver_name: (docData.approver as any)?.full_name || PRINT_CONFIG.FALLBACK_TEXT,
+            approver_position: (docData.approver as any)?.position || PRINT_CONFIG.FALLBACK_TEXT,
+            receiver_name: receiverName,
+            items: sortedItems
+          } as RequisitionDoc);
+        }
+      } catch (error) {
+        console.error("Error fetching requisition:", error);
+        alert("ไม่พบข้อมูลใบเบิก");
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchDoc();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
+
+  return { data, isLoading };
+}
+
+// ==========================================
+// Utility functions
+// ==========================================
+function calculatePrintLayout(items: GroupedRequisitionItem[]): PageLayout[] {
+  if (!items || items.length === 0) return [];
+
+  // Group items
+  const groupedItems = items.reduce((acc: Record<string, GroupedRequisitionItem[]>, item) => {
+    const dosageForm = item._groupedDosageForm;
+    if (!acc[dosageForm]) acc[dosageForm] = [];
+    acc[dosageForm].push(item);
+    return acc;
+  }, {});
+
+  const pages: PageLayout[] = [];
+  let currentPageItems: Record<string, GroupedRequisitionItem[]> = {};
+  let currentUnits = PRINT_CONFIG.MAIN_HEADER_UNITS;
+  let pageNum = 1;
+
+  const sortedGroups = Object.keys(groupedItems).sort();
+
+  for (const dosageForm of sortedGroups) {
+    const groupItems = groupedItems[dosageForm];
+
+    if (currentUnits + PRINT_CONFIG.GROUP_HEADER_UNITS > PRINT_CONFIG.MAX_UNITS_PER_PAGE) {
+      pages.push({ pageNumber: pageNum, itemsByGroup: currentPageItems, isLastPage: false, hasMainHeader: pageNum === 1 });
+      pageNum++;
+      currentPageItems = {};
+      currentUnits = 0;
+    }
+
+    currentUnits += PRINT_CONFIG.GROUP_HEADER_UNITS;
+    currentPageItems[dosageForm] = [];
+
+    for (const item of groupItems) {
+      let itemUnits = PRINT_CONFIG.ITEM_UNITS;
+      if ((item.product?.generic_name?.length || 0) > 40) itemUnits += 0.5;
+      if ((item.remarks?.length || 0) > 20) itemUnits += 0.5;
+
+      if (currentUnits + itemUnits > PRINT_CONFIG.MAX_UNITS_PER_PAGE) {
+        pages.push({ pageNumber: pageNum, itemsByGroup: currentPageItems, isLastPage: false, hasMainHeader: pageNum === 1 });
+        pageNum++;
+        currentPageItems = {};
+        currentPageItems[dosageForm] = [];
+        currentUnits = PRINT_CONFIG.GROUP_HEADER_UNITS; // Repeat group header
+      }
+
+      currentPageItems[dosageForm].push(item);
+      currentUnits += itemUnits;
+    }
+  }
+
+  // Check if signatures fit
+  if (currentUnits + PRINT_CONFIG.SIGNATURE_UNITS > PRINT_CONFIG.MAX_UNITS_PER_PAGE) {
+    pages.push({ pageNumber: pageNum, itemsByGroup: currentPageItems, isLastPage: false, hasMainHeader: pageNum === 1 });
+    pageNum++;
+    currentPageItems = {};
+    currentUnits = 0;
+  }
+
+  pages.push({ pageNumber: pageNum, itemsByGroup: currentPageItems, isLastPage: true, hasMainHeader: pageNum === 1 });
+  
+  return pages;
+}
 
 // ==========================================
 // Main Component
@@ -34,58 +251,13 @@ type RequisitionDoc = {
 export default function PrintRequisition() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [data, setData] = useState<RequisitionDoc | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  
+  const { data, isLoading } = useRequisitionPrintData(id);
 
-  // ดึงข้อมูลใบเบิกจาก Database
-  useEffect(() => {
-    const fetchDoc = async () => {
-      if (!id) return;
-      
-      try {
-        // ดึงหัวเอกสาร
-        const { data: docData, error: docError } = await supabase
-          .from('requisitions')
-          .select(`
-            *,
-            requester:users!requester_id(full_name),
-            approver:users!approver_id(full_name)
-          `)
-          .eq('id', id)
-          .single();
-
-        if (docError) throw docError;
-
-        // ดึงรายการยา
-        const { data: itemsData, error: itemsError } = await supabase
-          .from('requisition_items')
-          .select(`
-            id, qty, product_id,
-            product:products (
-              drug_code, generic_name,
-              unit_id (name)
-            )
-          `)
-          .eq('requisition_id', id);
-
-        if (itemsError) throw itemsError;
-
-        setData({
-          ...docData,
-          requester_name: docData.requester?.full_name || '.............................................',
-          approver_name: docData.approver?.full_name || '.............................................',
-          items: itemsData || []
-        });
-      } catch (error) {
-        console.error("Error fetching requisition:", error);
-        alert("ไม่พบข้อมูลใบเบิก");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchDoc();
-  }, [id]);
+  const pages = useMemo(() => {
+    if (!data?.items) return [];
+    return calculatePrintLayout(data.items);
+  }, [data?.items]);
 
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center">กำลังโหลดข้อมูลการพิมพ์...</div>;
@@ -95,143 +267,238 @@ export default function PrintRequisition() {
     return <div className="min-h-screen flex items-center justify-center text-red-500">ข้อมูลผิดพลาด</div>;
   }
 
-  // เงื่อนไข: แสดงคอลัมน์ลำดับเฉพาะเมื่อมี > 1 รายการ
-  const showRowNo = data.items.length > 1;
+  const formattedDate = formatDate(data.doc_date);
 
-  // Format วันที่แบบไทย
-  const formattedDate = new Date(data.doc_date).toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  const totalPages = pages.length;
+  let globalItemIndex = 1;
 
   return (
-    <div className="min-h-screen bg-gray-200 py-8 print:py-0 print:bg-white flex justify-center font-sans">
-      
-      {/* 
-        Print CSS Styles
-        - ปรับ Size เป็น A4 Portrait
-        - ซ่อน Header/Footer ของ Browser Chrome
-        - .no-print จะถูกซ่อนเวลาสั่ง Print
-      */}
+    <div className="min-h-screen bg-gray-200 py-8 print:py-0 print:bg-white flex justify-center thsarabun-font">
       <style>{`
+        @font-face {
+          font-family: 'THSarabunNew';
+          src: url('/fonts/THsarabunNew/THSarabunNew.ttf') format('truetype');
+          font-weight: 400;
+          font-style: normal;
+        }
+        @font-face {
+          font-family: 'THSarabunNew';
+          src: url('/fonts/THsarabunNew/THSarabunNew Bold.ttf') format('truetype');
+          font-weight: 700;
+          font-style: normal;
+        }
+        @font-face {
+          font-family: 'THSarabunNew';
+          src: url('/fonts/THsarabunNew/THSarabunNew Italic.ttf') format('truetype');
+          font-weight: 400;
+          font-style: italic;
+        }
+        @font-face {
+          font-family: 'THSarabunNew';
+          src: url('/fonts/THsarabunNew/THSarabunNew BoldItalic.ttf') format('truetype');
+          font-weight: 700;
+          font-style: italic;
+        }
+
+        body {
+          font-family: 'THSarabunNew', sans-serif !important;
+        }
+
+        .page-container {
+          width: 210mm;
+          height: 297mm;
+          margin: 0 auto;
+          background: white;
+          padding: 12mm 15mm;
+          box-sizing: border-box;
+          box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+          margin-bottom: 20px;
+          position: relative;
+          overflow: hidden;
+        }
+
         @media print {
           @page {
             size: A4 portrait;
-            margin: 10mm; /* ระยะขอบกระดาษ */
+            margin: 0; 
           }
           body {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+            background-color: white !important;
+            font-family: 'THSarabunNew', sans-serif !important;
+          }
+          .page-container {
+            box-shadow: none;
+            margin-bottom: 0;
+            padding: 12mm 15mm;
+            page-break-after: always;
+            box-sizing: border-box;
+            height: 297mm;
+            overflow: hidden;
+          }
+          .page-container:last-child {
+            page-break-after: auto;
           }
           .no-print {
             display: none !important;
           }
         }
+
+        .thsarabun-font, .thsarabun-font * {
+          font-family: 'THSarabunNew', sans-serif !important;
+        }
+
+        table.sarabun-table th, table.sarabun-table td {
+          border: 1px solid black;
+          padding: 4px 6px;
+        }
       `}</style>
 
-      {/* กระดาษ A4 Container */}
-      <div className="bg-white w-[210mm] min-h-[297mm] shadow-xl print:shadow-none p-[10mm] print:p-0 relative box-border">
-        
+      <div className="flex flex-col items-center">
         {/* Toolbar บนสุด (ไม่พิมพ์) */}
-        <div className="no-print flex justify-between items-center mb-6 pb-4 border-b">
-          <button 
-            onClick={() => navigate(-1)} 
-            className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded"
+        <div className="no-print w-[210mm] flex justify-between items-center mb-4 mt-8 pb-4 border-b">
+          <button
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
           >
             ← กลับ
           </button>
-          <button 
-            onClick={() => window.print()} 
-            className="px-6 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded shadow font-bold"
+          <button
+            onClick={() => window.print()}
+            className="px-6 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded shadow font-bold transition-colors"
           >
             🖨️ สั่งพิมพ์เอกสาร
           </button>
         </div>
 
-        {/* ส่วนหัวเอกสาร */}
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">โรงพยาบาลร่องคำ</h1>
-          <h2 className="text-xl font-bold text-gray-700 mb-4">ใบขอเบิกยาและเวชภัณฑ์ (กลุ่มงานเภสัชกรรม)</h2>
-          
-          <div className="flex justify-between items-end text-sm text-gray-800 border-b pb-2">
-            <div className="text-left">
-              <p><strong>หน่วยงานที่ขอเบิก:</strong> ..............................................................</p>
+        {/* Render each page */}
+        {pages.map((page, pIdx) => (
+          <div key={pIdx} className="page-container thsarabun-font text-black flex flex-col justify-between">
+            <div>
+              {page.hasMainHeader && (
+                <>
+                  {/* ส่วนหัวเอกสาร */}
+                  <div className="text-center mb-4 leading-relaxed">
+                    <h1 className="text-[20pt] font-bold">ใบเบิกวัสดุ (เวชภัณฑ์ยา/เวชภัณฑ์มิใช่ยา)</h1>
+                    <h2 className="text-[18pt]">กลุ่มงานเภสัชกรรมและคุ้มครองผู้บริโภค โรงพยาบาลร่องคำ อำเภอร่องคำ จังหวัดกาฬสินธุ์</h2>
+                    <div className="mt-2 text-[16pt]">{formattedDate}</div>
+                  </div>
+
+                  {/* ข้อความเกริ่นนำ */}
+                  <div className="mb-4 text-[16pt] leading-tight text-justify" style={{ textIndent: '2.5rem' }}>
+                    ด้วยกลุ่มงานเภสัชกรรมและคุ้มครองผู้บริโภค (คลังเวชภัณฑ์ย่อย) ขอเบิกเวชภัณฑ์ยา/เวชภัณฑ์มิใช่ยา เพื่อใช้ในงานราชการ โรงพยาบาลร่องคำ โดยมอบหมายให้ {data.receiver_name} เป็นผู้รับของ จำนวน {data.items.length} รายการ ดังนี้
+                  </div>
+                </>
+              )}
+
+              {/* ตารางรายการเวชภัณฑ์ */}
+              <div className="mb-4">
+                {Object.keys(page.itemsByGroup).sort().map((dosageForm) => {
+                  const items = page.itemsByGroup[dosageForm];
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={dosageForm} className="mb-2">
+                      <div className="font-bold text-[16pt] mb-1">{dosageForm}</div>
+                      <table className="w-full border-collapse border border-black text-[15pt] sarabun-table">
+                        <thead className="bg-transparent">
+                          <tr>
+                            <th className="font-normal w-12 text-center">ลำดับ</th>
+                            <th className="font-normal text-center">รายการ</th>
+                            <th className="font-normal w-24 text-center">หน่วยนับ</th>
+                            <th className="font-normal w-20 text-center">อัตราใช้</th>
+                            <th className="font-normal w-20 text-center">คงเหลือ</th>
+                            <th className="font-normal w-16 text-center">เบิก</th>
+                            <th className="font-normal w-16 text-center">อนุมัติ</th>
+                            <th className="font-normal w-24 text-center">หมายเหตุ</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((item) => {
+                            const currentIndex = globalItemIndex++;
+                            const unitDisplay = (item.pack_size && item.pack_size !== 1) ? `${item.pack_size} ${item.product?.master_units?.name || item.unit_name || ''}` : `1 ${item.product?.master_units?.name || item.unit_name || ''}`;
+                            
+                            return (
+                              <tr key={item.id} className="print:break-inside-avoid">
+                                <td className="text-center">{currentIndex}</td>
+                                <td className="text-left">
+                                  {item.product?.generic_name}
+                                  {item.product?.trade_name && (
+                                    <span> ({item.product.trade_name})</span>
+                                  )}
+                                </td>
+                                <td className="text-center">{unitDisplay}</td>
+                                <td className="text-center">{item.usage_rate !== undefined ? item.usage_rate : '-'}</td>
+                                <td className="text-center">{item.substock_qty !== undefined ? item.substock_qty : '0'}</td>
+                                <td className="text-center">{item.qty}</td>
+                                <td className="text-center"></td>
+                                <td className="text-left text-[13pt]">{item.remarks || ''}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div className="text-right">
-              <p className="mb-1"><strong>เลขที่ใบเบิก:</strong> {data.doc_no || 'RQ-____-____'}</p>
-              <p><strong>วันที่:</strong> {formattedDate}</p>
+
+            {/* ส่วนลงท้ายและลายเซ็น - เฉพาะหน้าสุดท้าย */}
+            <div>
+              {page.isLastPage && (
+                <div className="text-[16pt] leading-tight print:break-inside-avoid mt-8">
+                  <div className="mb-8">เรียน หัวหน้าเจ้าหน้าที่พัสดุ เพื่อโปรดทราบและพิจารณา</div>
+                  
+                  <div className="grid grid-cols-2 gap-4 text-center">
+                    {/* ซ้าย: ผู้อนุมัติ/หัวหน้าหน่วยพัสดุ */}
+                    <div>
+                      <div className="mb-2 flex items-center justify-center">
+                        <span>(ลงชื่อ)</span>
+                        <span className="inline-block border-b border-black w-48 border-dotted mx-2"></span>
+                        <span>ผู้อนุมัติ/หัวหน้าหน่วยพัสดุ</span>
+                      </div>
+                      <div className="mb-2">( {data.approver_name} )</div>
+                      <div className="mb-2">ตำแหน่ง {data.approver_position}</div>
+                      <div className="flex items-center justify-center">
+                        <span>วันที่</span>
+                        <span className="inline-block border-b border-black w-8 border-dotted mx-1"></span>
+                        <span>เดือน</span>
+                        <span className="inline-block border-b border-black w-24 border-dotted mx-1"></span>
+                        <span>พ.ศ.</span>
+                        <span className="inline-block border-b border-black w-12 border-dotted mx-1"></span>
+                      </div>
+                    </div>
+
+                    {/* ขวา: ผู้เบิก */}
+                    <div>
+                      <div className="mb-2 flex items-center justify-center">
+                        <span>(ลงชื่อ)</span>
+                        <span className="inline-block border-b border-black w-48 border-dotted mx-2"></span>
+                        <span>ผู้เบิก</span>
+                      </div>
+                      <div className="mb-2">( {data.requester_name} )</div>
+                      <div className="mb-2">ตำแหน่ง {data.requester_position}</div>
+                      <div className="flex items-center justify-center">
+                        <span>วันที่</span>
+                        <span className="inline-block border-b border-black w-8 border-dotted mx-1"></span>
+                        <span>เดือน</span>
+                        <span className="inline-block border-b border-black w-24 border-dotted mx-1"></span>
+                        <span>พ.ศ.</span>
+                        <span className="inline-block border-b border-black w-12 border-dotted mx-1"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* หมายเลขหน้า */}
+              <div className="text-[16pt] leading-tight mt-4 text-center">
+                หน้าที่ {page.pageNumber} จาก {totalPages}
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* ตารางรายการยา */}
-        <table className="w-full border-collapse border border-black text-[13px] mb-8">
-          <thead className="bg-gray-50">
-            <tr>
-              {showRowNo && <th className="border border-black px-2 py-2 w-12 text-center">ลำดับ</th>}
-              <th className="border border-black px-2 py-2 w-24 text-center">รหัสยา</th>
-              <th className="border border-black px-2 py-2 text-left">รายการยา (Generic Name)</th>
-              <th className="border border-black px-2 py-2 w-20 text-center">หน่วย</th>
-              <th className="border border-black px-2 py-2 w-24 text-center">จำนวนขอเบิก</th>
-              <th className="border border-black px-2 py-2 w-24 text-center">จำนวนจ่าย</th>
-              <th className="border border-black px-2 py-2 w-32 text-center">หมายเหตุ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map((item, index) => (
-              <tr key={item.id} className="print:break-inside-avoid">
-                {showRowNo && (
-                  <td className="border border-black px-2 py-1.5 text-center">{index + 1}</td>
-                )}
-                <td className="border border-black px-2 py-1.5 text-center">{item.product?.drug_code || '-'}</td>
-                <td className="border border-black px-2 py-1.5">{item.product?.generic_name}</td>
-                {/* ถ้า nested join ลึก ต้อง cast structure หรือ optional chaining ชัวร์ๆ */}
-                <td className="border border-black px-2 py-1.5 text-center">{item.product?.unit_id?.name || '-'}</td>
-                <td className="border border-black px-2 py-1.5 text-center font-bold">{item.qty}</td>
-                <td className="border border-black px-2 py-1.5 text-center"></td>
-                <td className="border border-black px-2 py-1.5 text-center"></td>
-              </tr>
-            ))}
-            {/* ทำช่องว่างเผื่อความสวยงามหากรายการน้อย */}
-            {data.items.length < 5 && Array.from({ length: 5 - data.items.length }).map((_, i) => (
-              <tr key={`empty-${i}`}>
-                {showRowNo && <td className="border border-black px-2 py-4"></td>}
-                <td className="border border-black px-2 py-4"></td>
-                <td className="border border-black px-2 py-4"></td>
-                <td className="border border-black px-2 py-4"></td>
-                <td className="border border-black px-2 py-4"></td>
-                <td className="border border-black px-2 py-4"></td>
-                <td className="border border-black px-2 py-4"></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* ส่วนลายเซ็น (อยู่ด้านล่างสุดของรายการ) */}
-        <div className="grid grid-cols-3 gap-8 mt-16 text-sm text-center print:break-inside-avoid">
-          {/* ผู้ขอเบิก */}
-          <div>
-            <div className="mb-4">ลงชื่อ ..............................................................</div>
-            <div className="mb-1">( {data.requester_name} )</div>
-            <div>ผู้ขอเบิก</div>
-          </div>
-
-          {/* ผู้ตรวจรับ */}
-          <div>
-            <div className="mb-4">ลงชื่อ ..............................................................</div>
-            <div className="mb-1">( {data.approver_name} )</div>
-            <div>ผู้รับของ / ผู้ตรวจรับ</div>
-          </div>
-
-          {/* ผู้อนุมัติ */}
-          <div>
-            <div className="mb-4">ลงชื่อ ..............................................................</div>
-            <div className="mb-1">( .............................................................. )</div>
-            <div>ผู้อนุมัติจ่าย / เภสัชกร</div>
-          </div>
-        </div>
-
+        ))}
       </div>
     </div>
   );

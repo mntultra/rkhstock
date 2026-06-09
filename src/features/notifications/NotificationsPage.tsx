@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import { formatDate } from '@/utils/dateUtils';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { AlertTriangle, Clock, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { NotificationAlert } from '@/types';
 
 export default function NotificationsPage() {
-  const [alerts, setAlerts] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<NotificationAlert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -48,7 +50,7 @@ export default function NotificationsPage() {
         <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight mb-2">ศูนย์การแจ้งเตือน</h1>
-            <p className="text-gray-400 font-medium">รายการยาที่ใกล้หมดอายุจากระบบตรวจสอบรายวัน (pg_cron)</p>
+            <p className="text-gray-400 font-medium">รายการเวชภัณฑ์ที่ใกล้หมดอายุจากระบบตรวจสอบรายวัน (pg_cron)</p>
           </div>
           <div className="bg-white/10 backdrop-blur-md border border-white/20 px-6 py-3 rounded-2xl text-center">
             <p className="text-sm text-gray-300 font-bold mb-1">การแจ้งเตือนทั้งหมด</p>
@@ -70,7 +72,7 @@ export default function NotificationsPage() {
               <CheckCircle2 size={40} />
             </div>
             <h3 className="text-2xl font-extrabold text-gray-900 mb-2">ไม่พบการแจ้งเตือน</h3>
-            <p className="text-gray-500 font-medium">ระบบคลังยาของคุณอยู่ในสถานะที่ยอดเยี่ยม ไม่มีต๊อกที่ใกล้วิกฤต!</p>
+            <p className="text-gray-500 font-medium">ระบบคลังเวชภัณฑ์ของคุณอยู่ในสถานะที่ยอดเยี่ยม ไม่มีต๊อกที่ใกล้วิกฤต!</p>
           </div>
         ) : (
           alerts.map(alert => {
@@ -94,7 +96,7 @@ export default function NotificationsPage() {
                   
                   <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-700 font-medium">
                     <p>Lot Number: <span className="font-mono bg-white px-2 py-0.5 rounded border border-gray-200">{alert.lot_number}</span></p>
-                    <p>วันหมดอายุ: <span className="font-bold text-gray-900">{new Date(alert.expiry_date).toLocaleDateString('th-TH')}</span></p>
+                    <p>วันหมดอายุ: <span className="font-bold text-gray-900">{alert.expiry_date ? formatDate(alert.expiry_date) : '-'}</span></p>
                   </div>
                 </div>
               </div>

@@ -6,32 +6,47 @@ type ProductSearchInputProps = {
   warehouseId?: string; // ถ้าต้องการเช็ค Stock แค่คลังใดคลังหนึ่ง
   placeholder?: string;
   className?: string;
+  onClickOutside?: () => void;
+  autoFocus?: boolean;
 };
 
 export default function ProductSearchInput({
   onSelect,
   warehouseId,
-  placeholder = 'ค้นหาชื่อยา, รหัสยา (Trade, Generic, Code)...',
-  className = ''
+  placeholder = 'พิมพ์ชื่อสามัญ (Generic), รหัส, หรือ Trade Name...',
+  className = '',
+  onClickOutside,
+  autoFocus = false
 }: ProductSearchInputProps) {
   const { query, setQuery, results, isLoading, setResults } = useProductSearch(300, warehouseId);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(autoFocus);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // ปิด Dropdown เมื่อคลิกพื้นที่อื่น (Click Outside)
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        if (onClickOutside) onClickOutside();
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Keyboard Navigation: เลื่อน ขึ้น/ลง, ยืนยัน (Enter), ปิด (Escape)
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      // Delay focus slightly to ensure DOM is ready and prevent immediate blur from other events
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          setIsOpen(true);
+        }
+      }, 50);
+    }
+  }, [autoFocus]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!isOpen || results.length === 0) return;
 
@@ -49,7 +64,6 @@ export default function ProductSearchInput({
         if (selectedIndex >= 0 && results[selectedIndex]) {
           handleSelect(results[selectedIndex]);
         } else if (results.length > 0) {
-          // ถ้ากด Enter แต่ยังไม่เลื่อนลูกศร ให้เลือกอันแรกสุดอัตโนมัติ
           handleSelect(results[0]);
         }
         break;
@@ -77,6 +91,22 @@ export default function ProductSearchInput({
 
   return (
     <div ref={wrapperRef} className={`relative ${className}`}>
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 9999px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      `}</style>
+
       {/* ช่อง Input */}
       <div className="relative">
         <input
@@ -85,28 +115,28 @@ export default function ProductSearchInput({
           value={query}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => { if (query.length >= 2) setIsOpen(true); }}
+          onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
-          className="w-full p-3 pl-10 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-gray-800"
+          className="w-full py-2.5 pl-11 pr-10 border border-emerald-500 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 rounded-full font-bold text-gray-800 outline-none transition-all placeholder-gray-400/80 text-sm shadow-sm"
         />
-        <svg 
-          className="w-5 h-5 absolute left-3 top-3.5 text-gray-400" 
-          fill="none" stroke="currentColor" viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        
+        {/* Custom magnifying glass SVG matching the image */}
+        <svg className="w-[18px] h-[18px] absolute left-4 top-[13px] pointer-events-none" viewBox="0 0 24 24" fill="none">
+          <circle cx="11" cy="11" r="5.5" stroke="#3b82f6" strokeWidth="2.5" fill="#dbeafe" />
+          <path d="M20 20L15 15.05" stroke="#8b5cf6" strokeWidth="3" strokeLinecap="round" />
         </svg>
         
         {/* Loading Spinner Indicator */}
         {isLoading && (
-          <div className="absolute right-3 top-3.5">
-            <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+          <div className="absolute right-4 top-3">
+            <div className="w-4 h-4 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
           </div>
         )}
       </div>
 
       {/* Dropdown Results */}
-      {isOpen && query.length >= 2 && !isLoading && (
-        <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-xl max-h-72 overflow-y-auto">
+      {isOpen && !isLoading && (
+        <ul className="absolute z-50 w-[85vw] sm:w-[500px] left-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl max-h-72 overflow-y-auto p-1.5 custom-scrollbar">
           {results.length > 0 ? (
             results.map((product, index) => {
               const isSelected = index === selectedIndex;
@@ -115,34 +145,56 @@ export default function ProductSearchInput({
                   key={product.id}
                   onMouseEnter={() => setSelectedIndex(index)}
                   onClick={() => handleSelect(product)}
-                  className={`p-3 cursor-pointer border-b last:border-b-0 flex justify-between items-center transition-colors
-                    ${isSelected ? 'bg-blue-100' : 'hover:bg-gray-50'}
+                  className={`p-3 mx-1 mb-1 last:mb-0 cursor-pointer rounded-xl transition-all flex flex-col gap-1.5
+                    ${isSelected ? 'bg-emerald-50 text-emerald-950' : 'hover:bg-gray-50/70 bg-white'}
                   `}
                 >
-                  <div className="flex flex-col">
-                    <span className="font-bold text-gray-800 text-sm">
-                      {product.generic_name} 
-                      {product.trade_name && <span className="text-gray-500 font-normal ml-1">({product.trade_name})</span>}
-                    </span>
-                    <span className="text-xs text-gray-400 mt-1">
-                      Code: {product.drug_code || '-'} | GPU: {product.gpu_code || '-'}
-                    </span>
+                  <div className="font-extrabold text-gray-900 text-[15px] leading-tight">
+                    {product.generic_name}
+                    {product.trade_name && <span className="text-gray-500 font-medium text-xs ml-1.5">({product.trade_name})</span>}
                   </div>
                   
-                  {/* แสดงยอด Stock ปัจจุบัน */}
-                  <div className="text-right">
-                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                      product.total_stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                    }`}>
-                      Stock: {product.total_stock}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {product.drug_code && (
+                      <span className="font-mono font-bold text-gray-500 text-[11px] bg-gray-100 border border-gray-200/50 px-2 py-0.5 rounded">
+                        {product.drug_code}
+                      </span>
+                    )}
+                    
+                    {product.master_dosage_forms && (
+                      <span className="bg-purple-50 text-purple-600 border border-purple-100 px-2 py-0.5 rounded text-[11px] font-bold">
+                        {product.master_dosage_forms.abbreviation && product.master_dosage_forms.name_en
+                          ? `${product.master_dosage_forms.abbreviation} (${product.master_dosage_forms.name_en})`
+                          : product.master_dosage_forms.abbreviation || product.master_dosage_forms.name_en}
+                      </span>
+                    )}
+                    
+                    <span className="text-emerald-600 text-[11px] font-bold">
+                      บรรจุ {product.pack_size || 1} {product.unit_id?.name || 'ชิ้น'}
                     </span>
+                    
+                    {product.is_cold_storage && (
+                      <span className="bg-cyan-50 text-cyan-600 border border-cyan-200 px-2 py-0.5 rounded text-[10px] font-extrabold">
+                        COLD
+                      </span>
+                    )}
+                    {product.is_high_alert && (
+                      <span className="bg-orange-50 text-orange-600 border border-orange-200 px-2 py-0.5 rounded text-[10px] font-extrabold">
+                        HAD
+                      </span>
+                    )}
+                    {product.is_psycho_narco && (
+                      <span className="bg-rose-50 text-rose-600 border border-rose-200 px-2 py-0.5 rounded text-[10px] font-extrabold">
+                        PSYCO
+                      </span>
+                    )}
                   </div>
                 </li>
               );
             })
           ) : (
             <li className="p-4 text-center text-gray-500 text-sm">
-              ไม่พบรายการยาที่ค้นหา
+              ไม่พบรายการเวชภัณฑ์ที่ค้นหา
             </li>
           )}
         </ul>

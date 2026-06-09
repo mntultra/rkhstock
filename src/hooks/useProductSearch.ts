@@ -7,31 +7,29 @@ export function useProductSearch(debounceMs: number = 300, warehouseId?: string)
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // กำหนดเงื่อนไขว่าต้องพิมพ์อย่างน้อย 2 ตัวอักษร
-    if (!query || query.trim().length < 2) {
-      setResults([]);
-      setIsLoading(false);
-      return;
-    }
-
     const fetchProducts = async () => {
       setIsLoading(true);
       try {
-        // Clean query ป้องกันอักขระที่ทำให้ Supabase .or() พัง (เช่น เครื่องหมาย comma)
-        const safeQuery = query.replace(/,/g, '').trim();
-        const searchPattern = `%${safeQuery}%`;
-
-        // ค้นหาจาก 4 Field (ตาม Requirement)
-        // พร้อมดึง stock_balances มาเพื่อคำนวณยอดคงเหลือ
-        const { data, error } = await supabase
+        let queryBuilder = supabase
           .from('products')
           .select(`
             *,
+            unit_id:unit_id(name:unit_name),
+            master_dosage_forms(name_en, abbreviation),
             stock_balances ( warehouse_id, current_qty )
           `)
-          .or(`generic_name.ilike.${searchPattern},trade_name.ilike.${searchPattern},drug_code.ilike.${searchPattern},gpu_code.ilike.${searchPattern}`)
-          .eq('is_active', true)
-          .limit(10); // จำกัดผลลัพธ์เพื่อประสิทธิภาพ
+          .eq('is_active', true);
+
+        if (query && query.trim().length >= 2) {
+          const safeQuery = query.replace(/,/g, '').trim();
+          const searchPattern = `%${safeQuery}%`;
+          queryBuilder = queryBuilder.or(`generic_name.ilike.${searchPattern},trade_name.ilike.${searchPattern},drug_code.ilike.${searchPattern},gpu_code.ilike.${searchPattern}`);
+        } else {
+          // If query is empty or too short, order alphabetically by generic_name
+          queryBuilder = queryBuilder.order('generic_name', { ascending: true });
+        }
+
+        const { data, error } = await queryBuilder.limit(10); // จำกัดผลลัพธ์เพื่อประสิทธิภาพ
 
         if (error) throw error;
 
