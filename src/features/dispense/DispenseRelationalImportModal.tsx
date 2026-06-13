@@ -174,6 +174,10 @@ export default function DispenseRelationalImportModal({ isOpen, onClose, onSucce
                  const firstWithStock = matchingLots.find(b => b.current_qty > 0) || matchingLots[0];
                  expDate = firstWithStock.expiry_date;
                  uPrice = firstWithStock.unit_price;
+
+                 // Deduct the quantity in-memory so subsequent rows of the same product/lot can pick the next available lot
+                 const qtyToDeduct = Number(iRow.qty) || 0;
+                 firstWithStock.current_qty = Math.max(0, firstWithStock.current_qty - qtyToDeduct);
              }
           }
 

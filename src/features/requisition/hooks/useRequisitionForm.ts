@@ -100,7 +100,7 @@ const itemSchema = z.object({
   product_name: z.string().min(1, "กรุณาเลือกเวชภัณฑ์"),
   qty: z.number().min(1, "จำนวนเบิกต้องมากกว่า 0"),
   pack_size: z.number().default(1),
-  is_manual_rate: z.boolean().default(true),
+  is_manual_rate: z.boolean().default(false),
   months: z.number().default(6),
   suggested_qty: z.number().default(0),
   avg_monthly_usage: z.number().default(0),
@@ -352,6 +352,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
             id, qty, pack_size, unit_name, remarks, substock_qty, usage_rate, product_id,
             product:products (
               drug_code, generic_name, trade_name, is_psycho_narco, is_high_alert, is_cold_storage,
+              manual_monthly_usage,
               master_dosage_forms(name_en, abbreviation)
             )
           `)
@@ -361,27 +362,57 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
 
         // Map and reset
         if (headerData) {
-          const formattedItems = itemsData?.map(item => ({
-            product_id: item.product_id,
-            product_name: (item.product as unknown as ProductResult)?.generic_name || '',
-            qty: item.qty,
-            pack_size: item.pack_size,
-            is_manual_rate: false,
-            months: globalMonths,
-            suggested_qty: 0,
-            avg_monthly_usage: 0,
-            manual_monthly_usage: item.usage_rate ?? 0,
-            usage_rate: item.usage_rate ?? 0,
-            drug_code: (item.product as unknown as ProductResult)?.drug_code || '',
-            is_psycho_narco: (item.product as unknown as ProductResult)?.is_psycho_narco || false,
-            is_high_alert: (item.product as unknown as ProductResult)?.is_high_alert || false,
-            is_cold_storage: (item.product as unknown as ProductResult)?.is_cold_storage || false,
-            substock_qty: item.substock_qty ?? 0,
-            remarks: item.remarks || '',
-            trade_name: (item.product as unknown as ProductResult)?.trade_name || '',
-            unit_name: item.unit_name || '',
-            dosage_form_name: getDosageFormName((item.product as unknown as ProductResult)?.master_dosage_forms)
-          })) || [];
+          const formattedItems = await Promise.all((itemsData || []).map(async (item) => {
+            const product = (item.product as unknown as ProductResult);
+            const productId = item.product_id;
+            const months = globalMonths;
+            
+            let avgUsage = 0;
+            try {
+              if (productId) {
+                const { data: usageData } = await supabase.rpc('get_usage_rate', {
+                  p_product_id: productId,
+                  p_months: months,
+                });
+                if (usageData && usageData[0]) {
+                  avgUsage = Math.ceil(usageData[0].avg_monthly_usage || 0);
+                }
+              }
+            } catch (err) {
+              console.error('Error fetching usage rate for product on load:', err);
+            }
+
+            const manualUsage = product?.manual_monthly_usage ?? 0;
+            const savedUsageRate = item.usage_rate ?? 0;
+            
+            // Determine whether it was a manual rate or calculated rate.
+            // If the saved usage rate matches the auto-calculated average monthly usage,
+            // we treat it as is_manual_rate = false (i.e. calculated rate selected).
+            // Otherwise, it was manual rate (either matching product manual rate or custom rate).
+            const isManual = (savedUsageRate !== avgUsage) || (savedUsageRate === manualUsage && avgUsage === manualUsage);
+
+            return {
+              product_id: item.product_id,
+              product_name: product?.generic_name || '',
+              qty: item.qty,
+              pack_size: item.pack_size,
+              is_manual_rate: isManual,
+              months: months,
+              suggested_qty: 0,
+              avg_monthly_usage: avgUsage,
+              manual_monthly_usage: manualUsage,
+              usage_rate: savedUsageRate,
+              drug_code: product?.drug_code || '',
+              is_psycho_narco: product?.is_psycho_narco || false,
+              is_high_alert: product?.is_high_alert || false,
+              is_cold_storage: product?.is_cold_storage || false,
+              substock_qty: item.substock_qty ?? 0,
+              remarks: item.remarks || '',
+              trade_name: product?.trade_name || '',
+              unit_name: item.unit_name || '',
+              dosage_form_name: getDosageFormName(product?.master_dosage_forms)
+            };
+          }));
           
           // Sort formattedItems by dosage_form_name then COLD then HAD then product_name
           formattedItems.sort((a, b) => {
@@ -555,7 +586,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
       remarks: '',
       trade_name: product.trade_name || '',
       dosage_form_name: getDosageFormName(product.master_dosage_forms as any),
-      is_manual_rate: true, // Default to manual input
+      is_manual_rate: false, // Default to auto input
     };
 
     update(index, newItem);
@@ -939,7 +970,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
           pack_size: product.pack_size || 1,
           unit_name: getUnitName(product.master_units as any),
           qty: qtyVal,
-          is_manual_rate: true,
+          is_manual_rate: false,
           months: globalMonths,
           suggested_qty: 0,
           avg_monthly_usage: 0,
@@ -1195,7 +1226,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
                   pack_size: product.pack_size || 1,
                   unit_name: getUnitName(product.master_units as any),
                   qty: qtyVal,
-                  is_manual_rate: true,
+                  is_manual_rate: false,
                   months: globalMonths,
                   suggested_qty: 0,
                   avg_monthly_usage: 0,
@@ -1666,7 +1697,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
           product_name: '',
           qty: 0,
           pack_size: 1,
-          is_manual_rate: true,
+          is_manual_rate: false,
           months: globalMonths,
           suggested_qty: 0,
           avg_monthly_usage: 0,

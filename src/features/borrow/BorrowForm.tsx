@@ -289,7 +289,8 @@ export default function BorrowForm() {
             borrowed_qty: Number(row.qty),
             pack_size: row.pack_size,
             unit_name: row.unit_name,
-            status: 'PENDING'
+            status: 'PENDING',
+            movement_id: movement.id
           });
         
         if (borrowError) throw borrowError;

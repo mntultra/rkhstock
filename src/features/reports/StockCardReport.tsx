@@ -136,7 +136,15 @@ export default function StockCardReport() {
       
       // เรียงลำดับตามวันที่ทำรายการ (JavaScript Sort)
       const sortedData = (data || []).sort((a: any, b: any) => {
-        return new Date(a.stock_movements.doc_date).getTime() - new Date(b.stock_movements.doc_date).getTime();
+        const timeDiff = new Date(a.stock_movements.doc_date).getTime() - new Date(b.stock_movements.doc_date).getTime();
+        if (timeDiff !== 0) return timeDiff;
+        
+        // ถ้าเป็นวันเดียวกัน ให้รายการนำเข้า (RECEIVE, RETURN, ADJUST) อยู่ก่อนรายการตัดออก
+        const isAIn = ['RECEIVE', 'RETURN', 'ADJUST'].includes(a.stock_movements.movement_type);
+        const isBIn = ['RECEIVE', 'RETURN', 'ADJUST'].includes(b.stock_movements.movement_type);
+        if (isAIn && !isBIn) return -1;
+        if (!isAIn && isBIn) return 1;
+        return 0;
       });
       
       // 4.3 คำนวณยอดคงเหลือสะสมทีละบรรทัด (Running Balance)

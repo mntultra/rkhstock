@@ -30,6 +30,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import DispenseRelationalImportModal from './DispenseRelationalImportModal';
+import { DatePicker } from '@/components/ui/DatePicker';
 
 // ─── Custom Officer Dropdown ─────────────────────────────────────────────────────
 function CustomOfficerSelect({ value, onChange, officers, placeholder = '-- เลือกเจ้าหน้าที่ --' }: {
@@ -160,7 +161,6 @@ function CustomLotSelect({ value, onChange, options, hasError, setCellRef, onKey
         type="button" 
         ref={setCellRef}
         onKeyDown={handleKeyDown}
-        disabled={!hasMultipleLots}
         onClick={() => { 
           if (hasMultipleLots) {
             setOpen(!open); 
@@ -252,6 +252,10 @@ interface DispenseResultItem {
   lots: { lot_number: string; qty: number }[];
 }
 
+// ─── Keyboard Navigation ──────────────────────────────────────────────────
+const COLUMNS = ['qty', 'selected_lot', 'remark'] as const;
+type NavColumn = typeof COLUMNS[number];
+
 export default function DispenseForm() {
   const navigate = useNavigate();
   const { warehouses, isLoading: isWarehousesLoading } = useWarehouses();
@@ -273,10 +277,14 @@ export default function DispenseForm() {
   const [scannerInstance, setScannerInstance] = useState<Html5Qrcode | null>(null);
   const [scannerError, setScannerError] = useState<string | null>(null);
 
-  const [rows, setRows] = useState<DispenseRow[]>([
-    { id: crypto.randomUUID(), product: null, qty: '', pack_size: 1, unit_name: '', selected_lot: '', totalStock: 0, availableBalances: [], remark: '' }
+  const initialId = useRef(crypto.randomUUID());
+  const [rows, setRows] = useState<DispenseRow[]>(() => [
+    { id: initialId.current, product: null, qty: '', pack_size: 1, unit_name: '', selected_lot: '', totalStock: 0, availableBalances: [], remark: '' }
   ]);
-  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const rowsRef = useRef(rows);
+  useEffect(() => { rowsRef.current = rows; }, [rows]);
+
+  const [editingRowId, setEditingRowId] = useState<string | null>(() => initialId.current);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
@@ -311,14 +319,18 @@ export default function DispenseForm() {
   }, []);
 
 // ─── Keyboard Navigation ──────────────────────────────────────────────────
-  const COLUMNS = ['qty', 'selected_lot', 'remark'] as const;
-  type NavColumn = typeof COLUMNS[number];
   const cellRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const refCallbacks = useRef<Map<string, (el: HTMLElement | null) => void>>(new Map());
 
-  const setCellRef = useCallback((rowId: string, col: NavColumn) => (el: HTMLElement | null) => {
+  const setCellRef = useCallback((rowId: string, col: NavColumn) => {
     const key = `${rowId}-${col}`;
-    if (el) cellRefs.current.set(key, el);
-    else cellRefs.current.delete(key);
+    if (!refCallbacks.current.has(key)) {
+      refCallbacks.current.set(key, (el: HTMLElement | null) => {
+        if (el) cellRefs.current.set(key, el);
+        else cellRefs.current.delete(key);
+      });
+    }
+    return refCallbacks.current.get(key)!;
   }, []);
 
   const focusCell = useCallback((rowId: string, col: NavColumn) => {
@@ -335,21 +347,20 @@ export default function DispenseForm() {
     col: NavColumn
   ) => {
     const colIndex = COLUMNS.indexOf(col);
+    const currentRows = rowsRef.current;
+    
     if (e.key === 'Tab' && !e.shiftKey) {
       e.preventDefault();
       if (colIndex < COLUMNS.length - 1) focusCell(rowId, COLUMNS[colIndex + 1]);
       else {
-        setRows(prev => {
-          const idx = prev.findIndex(i => i.id === rowId);
-          if (idx < prev.length - 1) {
-            setTimeout(() => focusCell(prev[idx + 1].id, 'qty'), 0);
-            return prev;
-          } else {
-            const newId = crypto.randomUUID();
-            setTimeout(() => focusCell(newId, 'qty'), 50);
-            return [...prev, { id: newId, product: null, qty: '', pack_size: 1, unit_name: '', selected_lot: '', totalStock: 0, availableBalances: [], remark: '' }];
-          }
-        });
+        const idx = currentRows.findIndex(i => i.id === rowId);
+        if (idx < currentRows.length - 1) {
+          setEditingRowId(currentRows[idx + 1].id);
+        } else {
+          const newId = crypto.randomUUID();
+          setRows(prev => [...prev, { id: newId, product: null, qty: '', pack_size: 1, unit_name: '', selected_lot: '', totalStock: 0, availableBalances: [], remark: '' }]);
+          setEditingRowId(newId);
+        }
       }
     } else if (e.key === 'Tab' && e.shiftKey) {
       e.preventDefault();
@@ -358,34 +369,25 @@ export default function DispenseForm() {
       e.preventDefault();
       if (colIndex < COLUMNS.length - 1) focusCell(rowId, COLUMNS[colIndex + 1]);
       else {
-        setRows(prev => {
-          const idx = prev.findIndex(i => i.id === rowId);
-          if (idx < prev.length - 1) {
-            setTimeout(() => focusCell(prev[idx + 1].id, 'qty'), 0);
-            return prev;
-          } else {
-            const newId = crypto.randomUUID();
-            setTimeout(() => focusCell(newId, 'qty'), 50);
-            return [...prev, { id: newId, product: null, qty: '', pack_size: 1, unit_name: '', selected_lot: '', totalStock: 0, availableBalances: [], remark: '' }];
-          }
-        });
+        const idx = currentRows.findIndex(i => i.id === rowId);
+        if (idx < currentRows.length - 1) {
+          setEditingRowId(currentRows[idx + 1].id);
+        } else {
+          const newId = crypto.randomUUID();
+          setRows(prev => [...prev, { id: newId, product: null, qty: '', pack_size: 1, unit_name: '', selected_lot: '', totalStock: 0, availableBalances: [], remark: '' }]);
+          setEditingRowId(newId);
+        }
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setRows(prev => {
-        const idx = prev.findIndex(i => i.id === rowId);
-        if (idx < prev.length - 1) setTimeout(() => focusCell(prev[idx + 1].id, col), 0);
-        return prev;
-      });
+      const idx = currentRows.findIndex(i => i.id === rowId);
+      if (idx < currentRows.length - 1) setTimeout(() => focusCell(currentRows[idx + 1].id, col), 0);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setRows(prev => {
-        const idx = prev.findIndex(i => i.id === rowId);
-        if (idx > 0) setTimeout(() => focusCell(prev[idx - 1].id, col), 0);
-        return prev;
-      });
+      const idx = currentRows.findIndex(i => i.id === rowId);
+      if (idx > 0) setTimeout(() => focusCell(currentRows[idx - 1].id, col), 0);
     }
-  }, [focusCell, COLUMNS]);
+  }, [focusCell]);
 
 // ─── Camera / Scanner Logic ─────────────────────────────────────────────
   const playScanBeep = () => {
@@ -605,10 +607,12 @@ export default function DispenseForm() {
   };
 
   const handleAddRow = () => {
+    const newId = crypto.randomUUID();
     setRows(prev => [
       ...prev,
-      { id: crypto.randomUUID(), product: null, qty: '' as number | '', pack_size: 1, unit_name: '', selected_lot: '', totalStock: 0, availableBalances: [], remark: '' }
+      { id: newId, product: null, qty: '' as number | '', pack_size: 1, unit_name: '', selected_lot: '', totalStock: 0, availableBalances: [], remark: '' }
     ]);
+    setEditingRowId(newId);
   };
 
   // Global listener: Alt+A to add row, Alt+H to toggle help
@@ -839,7 +843,7 @@ export default function DispenseForm() {
       }
 
       playSuccessBeep();
-      setSuccessMsg('บันทึกใบเบิกจ่ายและหักยอดสต๊อกเรียบร้อยแล้ว!');
+      setSuccessMsg('บันทึกใบจ่ายเวชภัณฑ์และหักยอดสต๊อกเรียบร้อยแล้ว!');
       setInvoiceResults(finalInvoiceList);
 
       setRows([{ id: crypto.randomUUID(), product: null, qty: '', pack_size: 1, unit_name: '', selected_lot: '', totalStock: 0, availableBalances: [], remark: '' }]);
@@ -902,7 +906,7 @@ export default function DispenseForm() {
         </div>
         <div>
           <label className="block text-sm font-bold text-gray-700 mb-1">วันที่จ่าย <span className="text-red-500">*</span></label>
-          <input type="date" value={docDate} onChange={e => setDocDate(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-emerald-100 outline-none transition-all text-sm font-medium" />
+          <DatePicker value={docDate} onChange={setDocDate} className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-emerald-100 outline-none transition-all text-sm font-medium" />
         </div>
         <div>
           <label className="block text-sm font-bold text-gray-700 mb-1">คลังต้นทาง <span className="text-red-500">*</span></label>
@@ -1117,12 +1121,12 @@ export default function DispenseForm() {
 
       <div className="flex justify-end pt-4">
         <Button type="button" onClick={handleSaveDispense} disabled={isSubmitting || totalItemsCount === 0} icon={isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={20} />} size="lg">
-          {isSubmitting ? 'กำลังจัดสรรล็อตและบันทึก...' : 'บันทึกใบเบิกจ่ายเวชภัณฑ์'}
+          {isSubmitting ? 'กำลังจัดสรรล็อตและบันทึก...' : 'บันทึกใบจ่ายเวชภัณฑ์'}
         </Button>
       </div>
 
       {activeScanRowId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl relative">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-extrabold flex items-center gap-2"><Camera className="text-emerald-600" /> สแกนบาร์โค้ดยาหรือล็อต</h3>
@@ -1146,7 +1150,7 @@ export default function DispenseForm() {
       )}
 
       {invoiceResults && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/85 backdrop-blur-md cursor-pointer" onClick={() => setInvoiceResults(null)}></div>
           <div className="relative w-full max-w-2xl bg-gradient-to-b from-emerald-950 to-neutral-950 border border-emerald-500/30 rounded-3xl p-6 sm:p-8 text-white shadow-2xl z-10 animate-fade-in-up max-h-[85vh] overflow-y-auto">
             <button onClick={() => setInvoiceResults(null)} className="absolute top-4 right-4 p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"><X size={20} /></button>
@@ -1189,7 +1193,7 @@ export default function DispenseForm() {
             <div className="mt-8 flex justify-between items-center border-t border-white/10 pt-6">
               {dispenseDocId ? (
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => navigate(`/movement/print/${dispenseDocId}`)} icon={<Printer size={18} />} className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 transition-colors bg-transparent">พิมพ์ใบตัดจ่าย</Button>
+                  <Button variant="outline" onClick={() => navigate(`/movement/print/${dispenseDocId}`)} icon={<Printer size={18} />} className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 transition-colors bg-transparent">พิมพ์ใบจ่ายเวชภัณฑ์</Button>
                   <Button variant="outline" onClick={async () => {
                     if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการ Void (ยกเลิก) รายการนี้? การกระทำนี้ไม่สามารถย้อนกลับได้ และจะคืนยอดสต๊อกกลับไป')) return;
                     try {

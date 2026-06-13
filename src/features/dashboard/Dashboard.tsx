@@ -914,11 +914,19 @@ export default function Dashboard() {
                             <td className="px-3 py-2 font-bold text-gray-800">{req.requester?.full_name || '-'}</td>
                             <td className="px-3 py-2 text-gray-600">{req.approver?.full_name || '-'}</td>
                             <td className="px-3 py-2 text-center">
-                              {req.status === 'PENDING' ? (
-                                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-md font-bold text-[10px] animate-pulse">รออนุมัติ</span>
-                              ) : (
-                                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md font-bold text-[10px]">ฉบับร่าง (DRAFT)</span>
-                              )}
+                              {(() => {
+                                switch (req.status) {
+                                  case 'PENDING':
+                                    return <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-md font-bold text-[10px] animate-pulse">รออนุมัติ</span>;
+                                  case 'COMPLETED':
+                                    return <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md font-bold text-[10px]">ได้รับของแล้ว</span>;
+                                  case 'REJECTED':
+                                    return <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-md font-bold text-[10px]">ไม่อนุมัติ/ยกเลิก</span>;
+                                  case 'DRAFT':
+                                  default:
+                                    return <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md font-bold text-[10px]">ฉบับร่าง (DRAFT)</span>;
+                                }
+                              })()}
                             </td>
                           </tr>
                         ))

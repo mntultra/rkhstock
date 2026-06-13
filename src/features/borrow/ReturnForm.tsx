@@ -91,7 +91,8 @@ export default function ReturnForm() {
           movement_type: 'RETURN',
           to_warehouse_id: warehouseId,
           created_by: user.id,
-          created_by_position: creator?.position || null
+          created_by_position: creator?.position || null,
+          borrowing_id: borrowing.id
         })
         .select('id')
         .single();
@@ -121,7 +122,18 @@ export default function ReturnForm() {
 
       if (itemsError) throw itemsError;
 
-      // 3. Update Borrowing Record
+      // 4. Update Stock Balances using RPC
+      const { error: rpcError } = await supabase.rpc('add_stock_balance', {
+        p_product_id: borrowing.product_id,
+        p_warehouse_id: warehouseId,
+        p_lot_number: lotNumber,
+        p_expiry_date: expiryDate,
+        p_unit_price: 0,
+        p_qty: Number(returnQty)
+      });
+      if (rpcError) throw rpcError;
+
+      // 5. Update Borrowing Record
       const newReturnedQty = borrowing.returned_qty + Number(returnQty);
       const newStatus = newReturnedQty >= borrowing.borrowed_qty ? 'COMPLETED' : 'PARTIAL';
       

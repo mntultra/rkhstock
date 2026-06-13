@@ -65,10 +65,11 @@ export interface OfficerInfo {
 
 export function useReceiveForm() {
   const navigate = useNavigate();
-  const [items, setItems] = useState<ReceiveItem[]>([
-    { id: crypto.randomUUID(), product: null, lot_number: '', expiry_date: '', qty: '', pack_size: 1, unit_name: '', unit_price: '', remark: '' }
+  const initialId = useRef(crypto.randomUUID());
+  const [items, setItems] = useState<ReceiveItem[]>(() => [
+    { id: initialId.current, product: null, lot_number: '', expiry_date: '', qty: '', pack_size: 1, unit_name: '', unit_price: '', remark: '' }
   ]);
-  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editingRowId, setEditingRowId] = useState<string | null>(() => initialId.current);
   
   const { officers } = useOfficers(true); // เฉพาะเจ้าหน้าที่ที่ยังใช้งานอยู่ (active only)
 
@@ -203,21 +204,17 @@ export function useReceiveForm() {
         // Move to next column in same row
         focusCell(rowId, COLUMNS[colIndex + 1]);
       } else {
-        // Last column → move to qty of next row (or add new row)
-        setItems(prev => {
-          const idx = prev.findIndex(i => i.id === rowId);
-          if (idx < prev.length - 1) {
-            // Focus next row qty
-            setTimeout(() => focusCell(prev[idx + 1].id, 'qty'), 0);
-            return prev;
-          } else {
-            // Add new row
-            const newId = crypto.randomUUID();
-            const newRow = { id: newId, product: null, lot_number: '', expiry_date: '', qty: '' as const, pack_size: 1, unit_name: '', unit_price: '' as const, remark: '' };
-            setTimeout(() => focusCell(newId, 'qty'), 50);
-            return [...prev, newRow];
-          }
-        });
+        // Last column → move to product search of next row (or add new row)
+        const idx = items.findIndex(i => i.id === rowId);
+        if (idx < items.length - 1) {
+          setEditingRowId(items[idx + 1].id);
+        } else {
+          // Add new row
+          const newId = crypto.randomUUID();
+          const newRow = { id: newId, product: null, lot_number: '', expiry_date: '', qty: '' as const, pack_size: 1, unit_name: '', unit_price: '' as const, remark: '' };
+          setItems(prev => [...prev, newRow]);
+          setEditingRowId(newId);
+        }
       }
     } else if (e.key === 'Tab' && e.shiftKey) {
       e.preventDefault();
@@ -230,19 +227,16 @@ export function useReceiveForm() {
       if (colIndex < COLUMNS.length - 1) {
         focusCell(rowId, COLUMNS[colIndex + 1]);
       } else {
-        // Enter on last column → move to qty of next row or add new row
-        setItems(prev => {
-          const idx = prev.findIndex(i => i.id === rowId);
-          if (idx < prev.length - 1) {
-            setTimeout(() => focusCell(prev[idx + 1].id, 'qty'), 0);
-            return prev;
-          } else {
-            const newId = crypto.randomUUID();
-            const newRow = { id: newId, product: null, lot_number: '', expiry_date: '', qty: '' as const, pack_size: 1, unit_name: '', unit_price: '' as const, remark: '' };
-            setTimeout(() => focusCell(newId, 'qty'), 50);
-            return [...prev, newRow];
-          }
-        });
+        // Enter on last column → move to product search of next row or add new row
+        const idx = items.findIndex(i => i.id === rowId);
+        if (idx < items.length - 1) {
+          setEditingRowId(items[idx + 1].id);
+        } else {
+          const newId = crypto.randomUUID();
+          const newRow = { id: newId, product: null, lot_number: '', expiry_date: '', qty: '' as const, pack_size: 1, unit_name: '', unit_price: '' as const, remark: '' };
+          setItems(prev => [...prev, newRow]);
+          setEditingRowId(newId);
+        }
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -570,10 +564,12 @@ export function useReceiveForm() {
 
   // เพิ่มแถวใหม่ลงตาราง
   const handleAddRow = () => {
+    const newId = crypto.randomUUID();
     setItems(prev => [
       ...prev,
-      { id: crypto.randomUUID(), product: null, lot_number: '', expiry_date: '', qty: '', pack_size: 1, unit_name: '', unit_price: '', remark: '' }
+      { id: newId, product: null, lot_number: '', expiry_date: '', qty: '', pack_size: 1, unit_name: '', unit_price: '', remark: '' }
     ]);
+    setEditingRowId(newId);
   };
 
   const handleDuplicateRow = (id: string) => {

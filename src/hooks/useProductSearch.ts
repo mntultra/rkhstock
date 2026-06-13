@@ -60,9 +60,12 @@ export function useProductSearch(debounceMs: number = 300, warehouseId?: string)
       }
     };
 
-    const timer = setTimeout(fetchProducts, debounceMs);
-    return () => clearTimeout(timer);
-    
+    if (query === '') {
+      fetchProducts();
+    } else {
+      const timer = setTimeout(fetchProducts, debounceMs);
+      return () => clearTimeout(timer);
+    }
   }, [query, debounceMs, warehouseId]);
 
   return { query, setQuery, results, isLoading, setResults };

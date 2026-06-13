@@ -597,7 +597,7 @@ export default function ExpiredForm() {
       {/* 📦 กล่องข้อความสรุปผลการตัดล็อตยาสำเร็จ (Invoice Result Modal) */}
       {/* ==================================================== */}
       {invoiceResults && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/85 backdrop-blur-md cursor-pointer" onClick={() => setInvoiceResults(null)}></div>
           
           <div className="relative w-full max-w-2xl bg-gradient-to-b from-emerald-950 to-neutral-950 border border-emerald-500/30 rounded-3xl p-6 sm:p-8 text-white shadow-2xl z-10 animate-fade-in-up max-h-[85vh] overflow-y-auto">

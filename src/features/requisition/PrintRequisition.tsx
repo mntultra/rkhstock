@@ -1,16 +1,32 @@
 import { useEffect, useState, useMemo } from 'react';
-import { formatDate } from '@/utils/dateUtils';
 import { useParams, useNavigate } from 'react-router-dom';
+
+function formatThaiLongDate(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '-';
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return '-';
+  
+  const thaiMonths = [
+    'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+  ];
+  
+  const day = date.getDate();
+  const month = thaiMonths[date.getMonth()];
+  const year = date.getFullYear() + 543;
+  
+  return `${day} ${month} ${year}`;
+}
 import { supabase } from '@/lib/supabase';
 
 // ==========================================
 // Constants
 // ==========================================
 const PRINT_CONFIG = {
-  MAX_UNITS_PER_PAGE: 32,
+  MAX_UNITS_PER_PAGE: 24,
   MAIN_HEADER_UNITS: 6,
   GROUP_HEADER_UNITS: 2,
-  ITEM_UNITS: 1.1,
+  ITEM_UNITS: 1.2,
   SIGNATURE_UNITS: 10,
   FALLBACK_TEXT: '.............................................',
 };
@@ -267,13 +283,13 @@ export default function PrintRequisition() {
     return <div className="min-h-screen flex items-center justify-center text-red-500">ข้อมูลผิดพลาด</div>;
   }
 
-  const formattedDate = formatDate(data.doc_date);
+  const formattedDate = formatThaiLongDate(data.doc_date);
 
   const totalPages = pages.length;
   let globalItemIndex = 1;
 
   return (
-    <div className="min-h-screen bg-gray-200 py-8 print:py-0 print:bg-white flex justify-center thsarabun-font">
+    <div className="min-h-screen bg-gray-200 py-8 print:py-0 print:bg-white print:block flex justify-center thsarabun-font">
       <style>{`
         @font-face {
           font-family: 'THSarabunNew';
@@ -300,6 +316,11 @@ export default function PrintRequisition() {
           font-style: italic;
         }
 
+        @page {
+          size: A4 portrait;
+          margin: 0; 
+        }
+
         body {
           font-family: 'THSarabunNew', sans-serif !important;
         }
@@ -309,7 +330,7 @@ export default function PrintRequisition() {
           height: 297mm;
           margin: 0 auto;
           background: white;
-          padding: 12mm 15mm;
+          padding: 20mm 15mm;
           box-sizing: border-box;
           box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
           margin-bottom: 20px;
@@ -320,21 +341,25 @@ export default function PrintRequisition() {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 0; 
+            margin: 0;
           }
-          body {
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: white !important;
+            width: 210mm !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-            background-color: white !important;
             font-family: 'THSarabunNew', sans-serif !important;
           }
           .page-container {
+            margin: 0 !important;
             box-shadow: none;
-            margin-bottom: 0;
-            padding: 12mm 15mm;
+            padding: 20mm 15mm;
             page-break-after: always;
             box-sizing: border-box;
             height: 297mm;
+            width: 210mm !important;
             overflow: hidden;
           }
           .page-container:last-child {
@@ -355,7 +380,7 @@ export default function PrintRequisition() {
         }
       `}</style>
 
-      <div className="flex flex-col items-center">
+      <div className="flex flex-col items-center print:block">
         {/* Toolbar บนสุด (ไม่พิมพ์) */}
         <div className="no-print w-[210mm] flex justify-between items-center mb-4 mt-8 pb-4 border-b">
           <button
@@ -374,7 +399,7 @@ export default function PrintRequisition() {
 
         {/* Render each page */}
         {pages.map((page, pIdx) => (
-          <div key={pIdx} className="page-container thsarabun-font text-black flex flex-col justify-between">
+          <div key={pIdx} className="page-container thsarabun-font text-black flex flex-col">
             <div>
               {page.hasMainHeader && (
                 <>
@@ -403,14 +428,14 @@ export default function PrintRequisition() {
                       <table className="w-full border-collapse border border-black text-[15pt] sarabun-table">
                         <thead className="bg-transparent">
                           <tr>
-                            <th className="font-normal w-12 text-center">ลำดับ</th>
+                            <th className="font-normal w-10 text-center">ลำดับ</th>
                             <th className="font-normal text-center">รายการ</th>
-                            <th className="font-normal w-24 text-center">หน่วยนับ</th>
-                            <th className="font-normal w-20 text-center">อัตราใช้</th>
-                            <th className="font-normal w-20 text-center">คงเหลือ</th>
-                            <th className="font-normal w-16 text-center">เบิก</th>
-                            <th className="font-normal w-16 text-center">อนุมัติ</th>
-                            <th className="font-normal w-24 text-center">หมายเหตุ</th>
+                            <th className="font-normal w-20 text-center">หน่วยนับ</th>
+                            <th className="font-normal w-16 text-center">อัตราใช้</th>
+                            <th className="font-normal w-16 text-center">คงเหลือ</th>
+                            <th className="font-normal w-12 text-center">เบิก</th>
+                            <th className="font-normal w-12 text-center">อนุมัติ</th>
+                            <th className="font-normal w-20 text-center">หมายเหตุ</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -453,49 +478,46 @@ export default function PrintRequisition() {
                   <div className="grid grid-cols-2 gap-4 text-center">
                     {/* ซ้าย: ผู้อนุมัติ/หัวหน้าหน่วยพัสดุ */}
                     <div>
-                      <div className="mb-2 flex items-center justify-center">
-                        <span>(ลงชื่อ)</span>
-                        <span className="inline-block border-b border-black w-48 border-dotted mx-2"></span>
-                        <span>ผู้อนุมัติ/หัวหน้าหน่วยพัสดุ</span>
+                      <div className="mb-2 grid grid-cols-[1fr_auto_1fr] w-full items-center whitespace-nowrap">
+                        <div className="text-right pr-1">(ลงชื่อ)</div>
+                        <div className="text-center">................................................</div>
+                        <div className="text-left pl-1">(ผู้อนุมัติ/หัวหน้าหน่วยพัสดุ)</div>
                       </div>
                       <div className="mb-2">( {data.approver_name} )</div>
                       <div className="mb-2">ตำแหน่ง {data.approver_position}</div>
-                      <div className="flex items-center justify-center">
+                      <div className="flex items-center justify-center mt-2 whitespace-nowrap">
                         <span>วันที่</span>
-                        <span className="inline-block border-b border-black w-8 border-dotted mx-1"></span>
+                        <span className="mx-1">......</span>
                         <span>เดือน</span>
-                        <span className="inline-block border-b border-black w-24 border-dotted mx-1"></span>
+                        <span className="mx-1">........................</span>
                         <span>พ.ศ.</span>
-                        <span className="inline-block border-b border-black w-12 border-dotted mx-1"></span>
+                        <span className="mx-1">..........</span>
                       </div>
                     </div>
 
                     {/* ขวา: ผู้เบิก */}
                     <div>
-                      <div className="mb-2 flex items-center justify-center">
-                        <span>(ลงชื่อ)</span>
-                        <span className="inline-block border-b border-black w-48 border-dotted mx-2"></span>
-                        <span>ผู้เบิก</span>
+                      <div className="mb-2 grid grid-cols-[1fr_auto_1fr] w-full items-center whitespace-nowrap">
+                        <div className="text-right pr-1">(ลงชื่อ)</div>
+                        <div className="text-center">................................................</div>
+                        <div className="text-left pl-1">(ผู้เบิก)</div>
                       </div>
                       <div className="mb-2">( {data.requester_name} )</div>
                       <div className="mb-2">ตำแหน่ง {data.requester_position}</div>
-                      <div className="flex items-center justify-center">
+                      <div className="flex items-center justify-center mt-2 whitespace-nowrap">
                         <span>วันที่</span>
-                        <span className="inline-block border-b border-black w-8 border-dotted mx-1"></span>
+                        <span className="mx-1">......</span>
                         <span>เดือน</span>
-                        <span className="inline-block border-b border-black w-24 border-dotted mx-1"></span>
+                        <span className="mx-1">........................</span>
                         <span>พ.ศ.</span>
-                        <span className="inline-block border-b border-black w-12 border-dotted mx-1"></span>
+                        <span className="mx-1">..........</span>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* หมายเลขหน้า */}
-              <div className="text-[16pt] leading-tight mt-4 text-center">
-                หน้าที่ {page.pageNumber} จาก {totalPages}
-              </div>
+
             </div>
           </div>
         ))}

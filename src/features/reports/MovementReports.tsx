@@ -59,12 +59,13 @@ export default function MovementReports() {
       let query = supabase
         .from('stock_movements')
         .select(`
-          id, doc_no, movement_type, created_at, is_voided, voided_at, fiscal_year_id,
+          id, doc_no, doc_date, movement_type, created_at, is_voided, voided_at, fiscal_year_id,
           stock_movement_items(product_id, qty, products(generic_name))
         `)
         .eq('movement_type', reportType)
-        .gte('created_at', new Date(startDate).toISOString())
-        .lte('created_at', endOfDay.toISOString())
+        .gte('doc_date', new Date(startDate).toISOString().split('T')[0])
+        .lte('doc_date', new Date(endDate).toISOString().split('T')[0])
+        .order('doc_date', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (selectedFiscalYear !== 'ALL') {
@@ -160,6 +161,9 @@ export default function MovementReports() {
               <option value="RECEIVE">รายงานการรับเวชภัณฑ์เข้า (Receives)</option>
               <option value="DISPENSE">รายงานการตัดจ่ายเวชภัณฑ์ (Dispenses)</option>
               <option value="ADJUST">รายงานการตรวจนับ/ปรับยอด (Adjustments)</option>
+              <option value="DISPOSE">รายงานการทำลาย/ยาหมดอายุ (Disposals)</option>
+              <option value="BORROW">รายงานการให้ยืมเวชภัณฑ์ (Borrowings)</option>
+              <option value="RETURN">รายงานการรับคืนเวชภัณฑ์ (Returns)</option>
             </select>
           </div>
 
@@ -256,10 +260,12 @@ export default function MovementReports() {
                 return (
                   <tr key={m.id} className="hover:bg-gray-50 print:hover:bg-white align-top transition-colors">
                     <td className="border border-gray-300 p-2.5 text-center text-xs whitespace-nowrap">
-                      {new Date(m.created_at).toLocaleString('th-TH', { 
-                        year: 'numeric', month: 'short', day: '2-digit',
-                        hour: '2-digit', minute: '2-digit' 
-                      })}
+                      <div className="font-bold text-gray-800">{m.doc_date ? formatDate(m.doc_date) : '-'}</div>
+                      <div className="text-[10px] text-gray-400">
+                        {new Date(m.created_at).toLocaleString('th-TH', { 
+                          hour: '2-digit', minute: '2-digit' 
+                        })}
+                      </div>
                     </td>
                     <td className="border border-gray-300 p-2.5 text-center text-xs font-mono font-bold text-gray-600">
                       <Link 

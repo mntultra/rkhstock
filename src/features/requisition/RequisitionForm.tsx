@@ -575,7 +575,7 @@ export default function RequisitionForm() {
                                 }`}
                               >
                                 <div className={item.is_manual_rate ? 'text-emerald-100 text-[10px] font-bold' : 'text-gray-400 text-[10px]'}>
-                                  ฐานข้อมูล
+                                  กำหนดเอง
                                 </div>
                                 <div className="text-sm font-black mt-0.5">
                                   {item.manual_monthly_usage || 0}
@@ -596,7 +596,7 @@ export default function RequisitionForm() {
                                 }`}
                               >
                                 <div className={!item.is_manual_rate ? 'text-indigo-100 text-[10px] font-bold' : 'text-gray-400 text-[10px]'}>
-                                  คำนวณ
+                                  อัตโนมัติ
                                 </div>
                                 <div className="text-sm font-black mt-0.5">
                                   {item.avg_monthly_usage || 0}

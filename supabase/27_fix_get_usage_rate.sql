@@ -1,0 +1,61 @@
+-- Migration: Fix get_usage_rate RPC function
+-- Description: Corrects the average monthly usage calculation by filtering out voided movements
+--              and restricting the date range to the specified last N months.
+
+CREATE OR REPLACE FUNCTION public.get_usage_rate(
+    p_product_id UUID,
+    p_months INT
+)
+RETURNS TABLE (
+    avg_monthly_usage NUMERIC,
+    suggested_order_qty NUMERIC,
+    last_dispense_date DATE
+) AS $$
+DECLARE
+    v_total_qty NUMERIC := 0;
+    v_last_date DATE;
+    v_current_stock NUMERIC := 0;
+    v_safety_months INT := 1;
+    v_avg NUMERIC := 0;
+    v_suggested NUMERIC := 0;
+BEGIN
+    -- 1. คำนวณหายอดการจ่ายออก (DISPENSE) ทั้งหมดในช่วงเวลาที่กำหนด (ย้อนหลัง p_months เดือน)
+    -- เฉพาะเอกสารที่ไม่ถูกยกเลิก (is_voided = false)
+    SELECT 
+        COALESCE(SUM(smi.qty), 0),
+        MAX(sm.doc_date)
+    INTO 
+        v_total_qty,
+        v_last_date
+    FROM public.stock_movement_items smi
+    JOIN public.stock_movements sm ON smi.movement_id = sm.id
+    WHERE smi.product_id = p_product_id
+      AND sm.movement_type = 'DISPENSE'
+      AND COALESCE(sm.is_voided, false) = false
+      AND sm.doc_date >= CURRENT_DATE - (p_months || ' month')::INTERVAL
+      AND sm.doc_date <= CURRENT_DATE;
+
+    -- 2. คำนวณค่าเฉลี่ยต่อเดือน (avg_monthly_usage)
+    v_avg := ROUND(v_total_qty::NUMERIC / p_months, 2);
+
+    -- 3. ดึงยอดคงคลังปัจจุบันทั้งหมดของเวชภัณฑ์นี้
+    SELECT COALESCE(SUM(current_qty), 0)
+    INTO v_current_stock
+    FROM public.stock_balances
+    WHERE product_id = p_product_id;
+
+    -- 4. ดึงค่าเดือนสำรองคลัง (Safety Stock Months) จากการตั้งค่าองค์กร
+    SELECT COALESCE(safety_stock_months, 1)
+    INTO v_safety_months
+    FROM public.organization_info
+    LIMIT 1;
+
+    -- 5. คำนวณยอดแนะนำ (suggested_order_qty)
+    -- สูตร: (อัตราใช้เฉลี่ยต่อเดือน * จำนวนเดือนที่ต้องการสำรอง) - ยอดคงคลังปัจจุบัน
+    v_suggested := GREATEST(0, ROUND((v_avg * v_safety_months) - v_current_stock, 2));
+
+    RETURN QUERY SELECT v_avg, v_suggested, v_last_date;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+COMMENT ON FUNCTION public.get_usage_rate(UUID, INT) IS 'คำนวณอัตราการจ่ายยาเฉลี่ยต่อเดือนและยอดแนะนำเบิก โดยคัดกรองรายการโมฆะและขอบเขตวันที่';
