@@ -956,7 +956,7 @@ export default function DispenseForm() {
 
               return (
                 <Fragment key={row.id}>
-                  <div className="relative group overflow-visible lg:grid lg:grid-cols-[3rem_minmax(250px,1fr)_140px_220px_110px_160px_4rem] xl:grid-cols-[3rem_minmax(300px,1fr)_140px_220px_110px_160px_4rem] lg:gap-2 items-center bg-white rounded-3xl shadow-sm border border-gray-100 lg:border-none lg:shadow-none lg:rounded-none p-4 lg:p-0 hover:bg-gray-50/30 transition-colors" style={{ zIndex: 100 - index }}>
+                  <div className="relative group overflow-visible lg:grid lg:grid-cols-[3rem_minmax(250px,1fr)_140px_220px_110px_160px_4rem] xl:grid-cols-[3rem_minmax(300px,1fr)_140px_220px_110px_160px_4rem] lg:gap-2 items-center bg-white rounded-3xl shadow-sm border border-gray-100 lg:border-none lg:shadow-none lg:rounded-none p-4 lg:p-0 hover:bg-gray-50/30 transition-colors" style={{ zIndex: 40 - index }}>
                     
                     {/* Mobile Card Header */}
                     <div className="flex lg:hidden justify-between items-center mb-3 pb-3 border-b border-gray-50">
@@ -1154,7 +1154,7 @@ export default function DispenseForm() {
       <div className="h-28 lg:hidden"></div>
 
       {/* Sticky Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-[150] bg-white/90 backdrop-blur-xl border-t border-gray-200 p-4 pb-safe lg:static lg:bg-transparent lg:backdrop-blur-none lg:border-none lg:p-0 lg:z-auto lg:flex lg:justify-end lg:pt-4 lg:pb-0 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.1)] lg:shadow-none transition-all">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-xl border-t border-gray-200 p-4 pb-safe lg:static lg:bg-transparent lg:backdrop-blur-none lg:border-none lg:p-0 lg:z-auto lg:flex lg:justify-end lg:pt-4 lg:pb-0 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.1)] lg:shadow-none transition-all">
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-3 lg:justify-end w-full">
           <div className="flex lg:hidden justify-between items-center px-2 pb-1">
             <div className="text-xs font-bold text-gray-500">รวมทั้งหมด <span className="text-emerald-700 text-sm font-black">{totalItemsCount}</span> รายการ</div>
