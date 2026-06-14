@@ -32,7 +32,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import DispenseRelationalImportModal from './DispenseRelationalImportModal';
 import { DatePicker } from '@/components/ui/DatePicker';
-import { useDispenseDraft, formatDraftTimestamp, DispenseDraftPayload } from '@/hooks/useDispenseDraft';
+import { useDispenseDraft, formatDraftTimestamp, DispenseDraftPayload, DraftRecord } from '@/hooks/useDispenseDraft';
 
 // ─── Custom Officer Dropdown ─────────────────────────────────────────────────────
 function CustomOfficerSelect({ value, onChange, officers, placeholder = '-- เลือกเจ้าหน้าที่ --' }: {
@@ -301,27 +301,33 @@ export default function DispenseForm() {
   // ─── Draft (IndexedDB auto-save) ─────────────────────────────────────────
   const { scheduleSave, loadDraft, clearDraft } = useDispenseDraft({
     userId: currentUserId,
-    docDate,
   });
 
   // Draft restore banner state
   const [pendingDraft, setPendingDraft] = useState<{ savedAt: string; payload: DispenseDraftPayload } | null>(null);
-  const [draftChecked, setDraftChecked] = useState(false); // prevent repeated checks
+  // Use a ref (not state) to prevent re-render race conditions on first mount
+  const draftCheckedRef = useRef(false);
 
-  // Check for existing draft once user & warehouses are loaded
+  // Check for existing draft once user ID is available — runs only once
   useEffect(() => {
-    if (!currentUserId || draftChecked) return;
-    setDraftChecked(true);
-    loadDraft().then(record => {
-      if (record) setPendingDraft({ savedAt: record.savedAt, payload: record.payload });
+    if (!currentUserId) return;
+    if (draftCheckedRef.current) return; // already ran
+    draftCheckedRef.current = true;
+    loadDraft().then((record: DraftRecord | null) => {
+      if (record) {
+        console.debug('[Draft] Found draft, showing banner:', record.savedAt);
+        setPendingDraft({ savedAt: record.savedAt, payload: record.payload });
+      }
     });
-  }, [currentUserId, draftChecked, loadDraft]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId]); // intentionally only re-run when userId changes
 
   // Auto-save on every meaningful state change (debounced inside hook)
   useEffect(() => {
     if (!currentUserId) return;
-    const hasData = rows.some(r => r.product || r.qty !== '');
-    if (!hasData) return; // don't pollute IDB with blank slates
+    // Only auto-save if there is at least one row with a product selected
+    const hasData = rows.some(r => r.product !== null);
+    if (!hasData) return;
     const payload: DispenseDraftPayload = {
       warehouseId, toWarehouseId, actorId, docDate, headerNote,
       rows: rows.map(r => ({

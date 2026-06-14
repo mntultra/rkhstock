@@ -6,6 +6,7 @@
  * Key design decisions:
  *  - Uses IndexedDB (not localStorage) — no 5 MB cap, survives tab crashes.
  *  - Draft keys are namespaced by userId to prevent cross-user leakage.
+ *  - Key does NOT include date — drafts persist across shift boundaries.
  *  - Auto-saves on every state change (debounced 800 ms to avoid write storms).
  *  - Draft is cleared immediately & atomically on successful submit.
  *  - Restore is always gated behind a user-visible prompt (never silent).
@@ -15,15 +16,17 @@ import { useEffect, useRef, useCallback } from 'react';
 
 // ── IndexedDB helpers ────────────────────────────────────────────────────────
 
-const DB_NAME  = 'rkhstock_drafts';
-const DB_VER   = 1;
-const STORE    = 'dispense_drafts';
+const DB_NAME = 'rkhstock_drafts';
+const DB_VER  = 1;
+const STORE   = 'dispense_drafts';
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
     req.onupgradeneeded = () => {
-      req.result.createObjectStore(STORE);
+      if (!req.result.objectStoreNames.contains(STORE)) {
+        req.result.createObjectStore(STORE);
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror   = () => reject(req.error);
@@ -71,7 +74,7 @@ export interface DispenseDraftPayload {
   rows: unknown[];         // serialised DispenseRow[] (opaque to this hook)
 }
 
-interface DraftRecord {
+export interface DraftRecord {
   savedAt: string;         // ISO timestamp
   payload: DispenseDraftPayload;
 }
@@ -80,14 +83,13 @@ interface DraftRecord {
 
 interface Options {
   userId: string | null;    // null = not yet logged-in, draft ops are no-ops
-  docDate: string;          // used to construct key, e.g. "2026-06-14"
   debounceMs?: number;      // default 800
 }
 
 interface UseDraftReturn {
   /** Call after every form state change to schedule an auto-save. */
   scheduleSave: (payload: DispenseDraftPayload) => void;
-  /** Check IDB for an existing draft and return it; null if nothing found. */
+  /** Check IDB for an existing draft; returns null if nothing found. */
   loadDraft: () => Promise<DraftRecord | null>;
   /** Permanently remove the draft — call immediately after a successful submit. */
   clearDraft: () => Promise<void>;
@@ -95,12 +97,12 @@ interface UseDraftReturn {
   draftKey: string | null;
 }
 
-export function useDispenseDraft({ userId, docDate, debounceMs = 800 }: Options): UseDraftReturn {
-  const timerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+export function useDispenseDraft({ userId, debounceMs = 800 }: Options): UseDraftReturn {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Key pattern: dispense_draft_{userId}_{YYYYMMDD}
-  // Each calendar-day gets its own slot so drafts don't bleed across shifts.
-  const draftKey = userId ? `dispense_draft_${userId}_${docDate.replace(/-/g, '')}` : null;
+  // Key pattern: dispense_draft_{userId}
+  // No date suffix — a draft persists until explicitly cleared after submit.
+  const draftKey = userId ? `dispense_draft_${userId}` : null;
 
   /** Debounced auto-save to IndexedDB. */
   const scheduleSave = useCallback((payload: DispenseDraftPayload) => {
@@ -113,18 +115,19 @@ export function useDispenseDraft({ userId, docDate, debounceMs = 800 }: Options)
           payload,
         };
         await idbSet(draftKey, record);
+        console.debug('[Draft] Auto-saved to IndexedDB', draftKey);
       } catch (err) {
-        // Silent fail — auto-save is best-effort, never block the user.
         console.warn('[Draft] Auto-save failed:', err);
       }
     }, debounceMs);
   }, [draftKey, debounceMs]);
 
-  /** Load the latest draft for this key. Returns null if nothing stored. */
+  /** Load the latest draft for this user. Returns null if nothing stored. */
   const loadDraft = useCallback(async (): Promise<DraftRecord | null> => {
     if (!draftKey) return null;
     try {
       const record = await idbGet<DraftRecord>(draftKey);
+      console.debug('[Draft] Load result for', draftKey, ':', record ? 'found' : 'empty');
       return record ?? null;
     } catch (err) {
       console.warn('[Draft] Load failed:', err);
@@ -137,6 +140,7 @@ export function useDispenseDraft({ userId, docDate, debounceMs = 800 }: Options)
     if (!draftKey) return;
     try {
       await idbDelete(draftKey);
+      console.debug('[Draft] Cleared from IndexedDB', draftKey);
     } catch (err) {
       console.warn('[Draft] Clear failed:', err);
     }
