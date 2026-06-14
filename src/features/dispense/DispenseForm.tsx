@@ -24,13 +24,15 @@ import {
   Printer,
   Ban,
   Keyboard,
-  FileSpreadsheet
+  FileSpreadsheet,
+  RotateCcw
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import DispenseRelationalImportModal from './DispenseRelationalImportModal';
 import { DatePicker } from '@/components/ui/DatePicker';
+import { useDispenseDraft, formatDraftTimestamp, DispenseDraftPayload } from '@/hooks/useDispenseDraft';
 
 // ─── Custom Officer Dropdown ─────────────────────────────────────────────────────
 function CustomOfficerSelect({ value, onChange, officers, placeholder = '-- เลือกเจ้าหน้าที่ --' }: {
@@ -265,6 +267,12 @@ export default function DispenseForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   
+  // --- Current user ---
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data?.user?.id ?? null));
+  }, []);
+
   // --- Header States ---
   const [docDate, setDocDate] = useState(new Date().toISOString().split('T')[0]);
   const [actorId, setActorId] = useState(''); // ผู้จ่ายเวชภัณฑ์ (คลังย่อย)
@@ -289,6 +297,93 @@ export default function DispenseForm() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [invoiceResults, setInvoiceResults] = useState<DispenseResultItem[] | null>(null);
+
+  // ─── Draft (IndexedDB auto-save) ─────────────────────────────────────────
+  const { scheduleSave, loadDraft, clearDraft } = useDispenseDraft({
+    userId: currentUserId,
+    docDate,
+  });
+
+  // Draft restore banner state
+  const [pendingDraft, setPendingDraft] = useState<{ savedAt: string; payload: DispenseDraftPayload } | null>(null);
+  const [draftChecked, setDraftChecked] = useState(false); // prevent repeated checks
+
+  // Check for existing draft once user & warehouses are loaded
+  useEffect(() => {
+    if (!currentUserId || draftChecked) return;
+    setDraftChecked(true);
+    loadDraft().then(record => {
+      if (record) setPendingDraft({ savedAt: record.savedAt, payload: record.payload });
+    });
+  }, [currentUserId, draftChecked, loadDraft]);
+
+  // Auto-save on every meaningful state change (debounced inside hook)
+  useEffect(() => {
+    if (!currentUserId) return;
+    const hasData = rows.some(r => r.product || r.qty !== '');
+    if (!hasData) return; // don't pollute IDB with blank slates
+    const payload: DispenseDraftPayload = {
+      warehouseId, toWarehouseId, actorId, docDate, headerNote,
+      rows: rows.map(r => ({
+        id: r.id,
+        productId: r.product?.id,
+        productName: r.product?.generic_name,
+        tradeName: r.product?.trade_name,
+        drugCode: r.product?.drug_code,
+        isHighAlert: r.product?.is_high_alert,
+        isPsychoNarco: r.product?.is_psycho_narco,
+        qty: r.qty,
+        pack_size: r.pack_size,
+        unit_name: r.unit_name,
+        selected_lot: r.selected_lot,
+        remark: r.remark,
+        totalStock: r.totalStock,
+        availableBalances: r.availableBalances,
+      })),
+    };
+    scheduleSave(payload);
+  }, [rows, warehouseId, toWarehouseId, actorId, docDate, headerNote, currentUserId, scheduleSave]);
+
+  // Restore handler — called when user clicks "ใช่ กู้คืน"
+  const handleRestoreDraft = () => {
+    if (!pendingDraft) return;
+    const p = pendingDraft.payload;
+    if (p.warehouseId) setWarehouseId(p.warehouseId);
+    if (p.toWarehouseId) setToWarehouseId(p.toWarehouseId);
+    if (p.actorId) setActorId(p.actorId);
+    if (p.docDate) setDocDate(p.docDate);
+    if (p.headerNote) setHeaderNote(p.headerNote);
+    if (Array.isArray(p.rows) && p.rows.length > 0) {
+      setRows((p.rows as any[]).map((r: any) => ({
+        id: r.id || crypto.randomUUID(),
+        product: r.productId ? {
+          id: r.productId,
+          generic_name: r.productName || '',
+          trade_name: r.tradeName || '',
+          drug_code: r.drugCode || '',
+          is_high_alert: r.isHighAlert || false,
+          is_psycho_narco: r.isPsychoNarco || false,
+          pack_size: r.pack_size || 1,
+          unit_id: r.unit_name ? { name: r.unit_name } : null,
+        } : null,
+        qty: r.qty ?? '',
+        pack_size: r.pack_size || 1,
+        unit_name: r.unit_name || '',
+        selected_lot: r.selected_lot || '',
+        remark: r.remark || '',
+        totalStock: r.totalStock || 0,
+        availableBalances: r.availableBalances || [],
+        previewError: false,
+      })));
+    }
+    setPendingDraft(null);
+  };
+
+  // Discard draft — user clicks "ไม่ใช่ เริ่มใหม่"
+  const handleDiscardDraft = () => {
+    clearDraft();
+    setPendingDraft(null);
+  };
 
   // Default Warehouses: From "คลังย่อย" to "จุดจ่าย"
   useEffect(() => {
@@ -846,6 +941,10 @@ export default function DispenseForm() {
       setSuccessMsg('บันทึกใบจ่ายเวชภัณฑ์และหักยอดสต๊อกเรียบร้อยแล้ว!');
       setInvoiceResults(finalInvoiceList);
 
+      // ── Clear IDB draft immediately after successful submit ───────────────
+      await clearDraft();
+      setPendingDraft(null);
+
       setRows([{ id: crypto.randomUUID(), product: null, qty: '', pack_size: 1, unit_name: '', selected_lot: '', totalStock: 0, availableBalances: [], remark: '' }]);
       setDocDate(new Date().toISOString().split('T')[0]);
       setHeaderNote('');
@@ -864,6 +963,37 @@ export default function DispenseForm() {
 
   return (
     <div className="max-w-full mx-auto space-y-6 pb-20">
+
+      {/* ── Draft Restore Banner ──────────────────────────────────────────── */}
+      {pendingDraft && (
+        <div className="animate-fade-in-up bg-blue-50 border border-blue-200 rounded-2xl shadow-md overflow-hidden">
+          <div className="flex items-start gap-4 px-5 py-4">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
+              <RotateCcw size={20} className="text-blue-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-extrabold text-blue-900 text-sm">พบข้อมูลที่บันทึกไว้เมื่อ {formatDraftTimestamp(pendingDraft.savedAt)}</p>
+              <p className="text-blue-600 text-xs font-medium mt-0.5">ต้องการกู้คืนข้อมูลนั้นกลับมาไหม? (หากไม่กู้คืน ข้อมูลนั้นจะถูกลบทิ้ง)</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                className="px-4 py-2 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                ไม่ใช่ เริ่มใหม่
+              </button>
+              <button
+                type="button"
+                onClick={handleRestoreDraft}
+                className="px-4 py-2 text-sm font-extrabold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm"
+              >
+                ✅ ใช่ กู้คืน
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {successMsg && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-6 py-4 rounded-2xl flex items-center gap-3 shadow-sm animate-fade-in-up">
