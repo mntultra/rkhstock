@@ -161,6 +161,7 @@ export default function RequisitionForm() {
     handleSubmit,
     watch,
     setValue,
+    reset,
     errors,
     fields,
     append,
@@ -178,11 +179,54 @@ export default function RequisitionForm() {
     handleCloseImportModal,
     onSubmit,
     onInvalid,
-    currentDocNoPlaceholder
+    currentDocNoPlaceholder,
+    pendingDraft,
+    handleRestoreReqDraft,
+    handleDiscardReqDraft,
+    formatReqDraftTimestamp,
   } = useRequisitionForm(id, officers);
 
   return (
     <div className="max-w-full mx-auto space-y-6 animate-fade-in-up font-sans select-none pb-12">
+
+      {/* Draft Restore Banner */}
+      {pendingDraft && !isEditMode && (
+        <div className="relative overflow-hidden rounded-2xl shadow-lg animate-fade-in-up" style={{background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 40%, #8b5cf6 80%, #3b82f6 100%)'}}>
+          {/* Shimmer sweep */}
+          <div className="absolute inset-0 pointer-events-none" style={{background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.25) 50%, transparent 60%)', backgroundSize: '200% 100%', animation: 'shimmer 2.4s infinite linear'}} />
+          <style>{`@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
+          <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-5 py-4">
+            <div className="flex items-start gap-4 min-w-0">
+              <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 shadow-inner border border-white/30 text-2xl">
+                🔄
+              </div>
+              <div className="min-w-0">
+                <p className="font-black text-white text-sm drop-shadow">
+                  พบร่างใบเบิกที่บันทึกไว้เมื่อ {formatReqDraftTimestamp(pendingDraft.savedAt)}
+                </p>
+                <p className="text-white/85 text-xs font-semibold mt-0.5">ต้องการกู้คืนข้อมูลนั้นกลับมาไหม? หากไม่กู้คืน ข้อมูลจะถูกลบทิ้ง</p>
+              </div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleDiscardReqDraft}
+                className="px-4 py-2 text-sm font-extrabold text-white/90 bg-white/15 border border-white/30 rounded-xl hover:bg-white/25 transition-all backdrop-blur-sm cursor-pointer"
+              >
+                ❌ ไม่ใช่ เริ่มใหม่
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRestoreReqDraft(reset)}
+                className="px-5 py-2 text-sm font-black text-gray-900 bg-white rounded-xl hover:bg-yellow-50 transition-all shadow-md cursor-pointer"
+              >
+                ✅ ใช่ กู้คืน
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="glass p-6 sm:p-8 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4 border border-emerald-100/55 shadow-md shadow-emerald-950/5">
         <div className="flex items-center gap-4">

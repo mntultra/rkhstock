@@ -7,6 +7,7 @@ import { getDefaultOfficers, getOrganizationInfo } from '@/lib/supabase/queries'
 import { useNavigate } from 'react-router-dom';
 import { useKeyboardGridNavigator } from '@/hooks/useKeyboardGridNavigator';
 import * as XLSX from 'xlsx';
+import { useDispenseDraft, formatDraftTimestamp, DispenseDraftPayload, DraftRecord } from '@/hooks/useDispenseDraft';
 
 // ==========================================
 
@@ -228,6 +229,62 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
   const importFileRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
+  // ─── Draft state ───────────────────────────────────────────────────────
+  // Store userId in a ref so draft hook key is stable even before auth returns.
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data?.user?.id ?? null));
+  }, []);
+
+  // Use a per-feature key prefix so requisition drafts don’t collide with dispense drafts.
+  // We achieve this by wrapping the shared hook with a userId suffix — the hook itself
+  // stores key = `dispense_draft_{userId}` so we pass a synthetic userId per-feature.
+  const reqUserId = currentUserId ? `req_${currentUserId}` : null;
+  const { scheduleSave, loadDraft, clearDraft } = useDispenseDraft({ userId: reqUserId });
+
+  const [pendingDraft, setPendingDraft] = useState<{ savedAt: string; payload: DispenseDraftPayload } | null>(null);
+  const draftCheckedRef = useRef(false);
+
+  // Check for existing draft once (only create mode, not edit mode)
+  useEffect(() => {
+    if (isEditMode) return;
+    if (!currentUserId) return;
+    if (draftCheckedRef.current) return;
+    draftCheckedRef.current = true;
+    loadDraft().then((record: DraftRecord | null) => {
+      if (record) {
+        console.debug('[ReqDraft] Found draft:', record.savedAt);
+        setPendingDraft({ savedAt: record.savedAt, payload: record.payload });
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId, isEditMode]);
+
+  // Expose restore/discard handlers so RequisitionForm.tsx can wire them to the banner
+  const handleRestoreReqDraft = (resetFn: (v: any) => void) => {
+    if (!pendingDraft) return;
+    const p = pendingDraft.payload;
+    // payload.rows contains serialised FormValues.items
+    if (Array.isArray(p.rows) && p.rows.length > 0) {
+      resetFn({
+        doc_date: p.docDate || new Date().toISOString().split('T')[0],
+        requester_id: p.actorId || '',
+        approver_id: p.warehouseId || '', // re-purposed field
+        remarks: p.headerNote || '',
+        items: (p.rows as any[]).filter(r => r.product_id),
+      });
+    }
+    setPendingDraft(null);
+  };
+
+  const handleDiscardReqDraft = () => {
+    clearDraft();
+    setPendingDraft(null);
+  };
+
+  // format helper re-exported for use in the banner
+  const formatReqDraftTimestamp = formatDraftTimestamp;
+
   // Auto close autocomplete when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -296,6 +353,24 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
   });
 
   const watchItems = watch('items');
+
+  // ─── Auto-save to IndexedDB on every form change ─────────────────────────────
+  const watchAll = watch();
+  useEffect(() => {
+    if (!currentUserId || isEditMode) return;
+    const hasData = watchAll.items?.some(r => r.product_id);
+    if (!hasData) return;
+    const payload: DispenseDraftPayload = {
+      // Re-purpose fields: actorId = requester_id, warehouseId = approver_id
+      warehouseId: watchAll.approver_id || '',
+      toWarehouseId: '',
+      actorId: watchAll.requester_id || '',
+      docDate: watchAll.doc_date || '',
+      headerNote: watchAll.remarks || '',
+      rows: watchAll.items || [],
+    };
+    scheduleSave(payload);
+  }, [watchAll, currentUserId, isEditMode, scheduleSave]);
 
   useKeyboardGridNavigator({
     rowCount: fields.length,
@@ -1665,7 +1740,8 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
 
       if (itemsError) throw itemsError;
 
-      // Navigate to History page
+      // Navigate to History page — clear draft first
+      await clearDraft();
       navigate('/requisition/history');
 
     } catch (err: unknown) {
@@ -1774,6 +1850,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
     handleSubmit,
     watch,
     setValue,
+    reset,
     errors,
     fields,
     append,
@@ -1791,6 +1868,11 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
     handleCloseImportModal,
     onSubmit,
     onInvalid,
-    currentDocNoPlaceholder
+    currentDocNoPlaceholder,
+    // Draft
+    pendingDraft,
+    handleRestoreReqDraft,
+    handleDiscardReqDraft,
+    formatReqDraftTimestamp,
   };
 }

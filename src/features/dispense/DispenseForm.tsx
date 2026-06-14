@@ -972,27 +972,32 @@ export default function DispenseForm() {
 
       {/* ── Draft Restore Banner ──────────────────────────────────────────── */}
       {pendingDraft && (
-        <div className="animate-fade-in-up bg-blue-50 border border-blue-200 rounded-2xl shadow-md overflow-hidden">
-          <div className="flex items-start gap-4 px-5 py-4">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
-              <RotateCcw size={20} className="text-blue-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-extrabold text-blue-900 text-sm">พบข้อมูลที่บันทึกไว้เมื่อ {formatDraftTimestamp(pendingDraft.savedAt)}</p>
-              <p className="text-blue-600 text-xs font-medium mt-0.5">ต้องการกู้คืนข้อมูลนั้นกลับมาไหม? (หากไม่กู้คืน ข้อมูลนั้นจะถูกลบทิ้ง)</p>
+        <div className="animate-fade-in-up relative overflow-hidden rounded-2xl shadow-lg" style={{background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 40%, #8b5cf6 80%, #3b82f6 100%)'}}>
+          {/* Shimmer sweep */}
+          <div className="absolute inset-0 pointer-events-none" style={{background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.25) 50%, transparent 60%)', backgroundSize: '200% 100%', animation: 'shimmer 2.4s infinite linear'}} />
+          <style>{`@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
+          <div className="relative flex flex-col sm:flex-row sm:items-center gap-4 px-5 py-4">
+            <div className="flex items-start gap-4 flex-1 min-w-0">
+              <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 shadow-inner border border-white/30">
+                <RotateCcw size={22} className="text-white drop-shadow" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-black text-white text-sm drop-shadow">🔄 พบร่างเอกสารที่บันทึกไว้เมื่อ {formatDraftTimestamp(pendingDraft.savedAt)}</p>
+                <p className="text-white/85 text-xs font-semibold mt-0.5">ต้องการกู้คืนข้อมูลนั้นกลับมาไหม? หากไม่กู้คืน ข้อมูลจะถูกลบทิ้ง</p>
+              </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={handleDiscardDraft}
-                className="px-4 py-2 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm font-extrabold text-white/90 bg-white/15 border border-white/30 rounded-xl hover:bg-white/25 transition-all backdrop-blur-sm cursor-pointer"
               >
-                ไม่ใช่ เริ่มใหม่
+                ❌ ไม่ใช่ เริ่มใหม่
               </button>
               <button
                 type="button"
                 onClick={handleRestoreDraft}
-                className="px-4 py-2 text-sm font-extrabold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm"
+                className="px-5 py-2 text-sm font-black text-gray-900 bg-white rounded-xl hover:bg-yellow-50 transition-all shadow-md cursor-pointer"
               >
                 ✅ ใช่ กู้คืน
               </button>
