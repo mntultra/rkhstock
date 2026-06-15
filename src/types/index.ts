@@ -60,7 +60,7 @@ export interface ProductBarcode {
   id: string;
   product_id: string;
   barcode: string;
-  brand_name?: string | null;
+  trade_name?: string | null;
   barcode_type?: BarcodeType | null;
   is_primary?: boolean;
   notes?: string | null;

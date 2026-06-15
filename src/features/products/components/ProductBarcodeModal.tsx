@@ -21,7 +21,7 @@ const BARCODE_TYPES: { value: BarcodeType; label: string }[] = [
   { value: 'Other',     label: 'อื่นๆ' },
 ];
 
-const EMPTY_FORM = { barcode: '', brand_name: '', barcode_type: 'EAN13' as BarcodeType, notes: '' };
+const EMPTY_FORM = { barcode: '', trade_name: '', barcode_type: 'EAN13' as BarcodeType, notes: '' };
 
 // ============================================================
 // Component
@@ -99,7 +99,7 @@ export default function ProductBarcodeModal({ productId, productName, onClose }:
     const { error: err } = await supabase.from('product_barcodes').insert([{
       product_id:   productId,
       barcode:      form.barcode.trim(),
-      brand_name:   form.brand_name.trim() || null,
+      trade_name:   form.trade_name.trim() || null,
       barcode_type: form.barcode_type,
       notes:        form.notes.trim() || null,
       is_primary:   isFirst, // บาร์โค้ดแรก = primary อัตโนมัติ
@@ -211,15 +211,15 @@ export default function ProductBarcodeModal({ productId, productName, onClose }:
                 </div>
               )}
 
-              {/* Brand + Type */}
+              {/* Trade Name + Type */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">ยี่ห้อ / ชื่อการค้า</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">ชื่อการค้า / ยี่ห้อ</label>
                   <input
                     type="text"
                     placeholder="เช่น Sara, Tylenol"
-                    value={form.brand_name}
-                    onChange={e => setForm(prev => ({ ...prev, brand_name: e.target.value }))}
+                    value={form.trade_name}
+                    onChange={e => setForm(prev => ({ ...prev, trade_name: e.target.value }))}
                     className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-4 focus:ring-emerald-100 focus:border-emerald-400 outline-none"
                   />
                 </div>
@@ -324,8 +324,8 @@ export default function ProductBarcodeModal({ productId, productName, onClose }:
                         </span>
                       </div>
                       <div className="flex items-center gap-3 mt-0.5">
-                        {bc.brand_name && (
-                          <span className="text-xs text-emerald-700 font-bold">{bc.brand_name}</span>
+                        {bc.trade_name && (
+                          <span className="text-xs text-emerald-700 font-bold">{bc.trade_name}</span>
                         )}
                         {bc.notes && (
                           <span className="text-xs text-gray-400">{bc.notes}</span>
