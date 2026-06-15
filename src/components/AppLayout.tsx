@@ -69,6 +69,7 @@ const menuGroups = [
       { name: 'Stock Card', thName: '(บัญชีคุมเวชภัณฑ์)', path: '/reports/stock-card', icon: <FileSpreadsheet size={18} /> },
       { name: 'Requisition History', thName: '(ประวัติการขอเบิก)', path: '/requisition/history', icon: <ClipboardCheck size={18} /> },
       { name: 'Stock Movements', thName: '(รายงานการเคลื่อนไหวคลัง)', path: '/reports/movements', icon: <Activity size={18} /> },
+      { name: 'Expiry Tracking Report', thName: '(รายงานยาใกล้หมดอายุ)', path: '/expiry-tracking', icon: <Clock size={18} className="text-orange-400" /> },
       { name: 'Unfulfilled Report', thName: '(รายงานเวชภัณฑ์ค้างจ่าย)', path: '/reports/unfulfilled', icon: <FileX size={18} className="text-orange-500" /> },
       { name: 'Negative Stock Report', thName: '(รายงานคลังติดลบ)', path: '/reports/negative-stock', icon: <AlertTriangle size={18} className="text-red-500" /> },
     ]
@@ -276,7 +277,7 @@ export default function AppLayout() {
     <div className="h-screen overflow-hidden bg-[#f8faf5] flex font-sans selection:bg-emerald-200">
 
       {/* Sidebar - Desktop (ยืดหดแถบตามสถานะ isSidebarSlim) */}
-      <aside className={`hidden md:flex flex-col ${isSidebarSlim ? 'w-24' : 'w-80'
+      <aside className={`print:hidden hidden md:flex flex-col ${isSidebarSlim ? 'w-24' : 'w-80'
         } bg-emerald-950 border-r border-emerald-900/50 shadow-xl z-20 text-emerald-50 h-full transition-all duration-300 overflow-x-hidden`}>
         <SidebarContent
           isSlim={isSidebarSlim}
@@ -314,7 +315,7 @@ export default function AppLayout() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
 
         {/* Top Header */}
-        <header className="glass border-b border-white shadow-sm h-16 flex items-center justify-between px-4 sm:px-6 z-10 sticky top-0 shrink-0">
+        <header className="print:hidden glass border-b border-white shadow-sm h-16 flex items-center justify-between px-4 sm:px-6 z-10 sticky top-0 shrink-0">
           <div className="flex items-center gap-2">
             {/* Mobile Menu Button */}
             <button
@@ -408,7 +409,7 @@ export default function AppLayout() {
         </main>
 
         {/* Developer Footer */}
-        <footer className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-600 text-white py-3 px-4 flex items-center justify-center gap-2 text-xs shrink-0 z-10 shadow-[0_-4px_20px_rgba(16,185,129,0.3)] border-t border-emerald-400/30">
+        <footer className="print:hidden bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-600 text-white py-3 px-4 flex items-center justify-center gap-2 text-xs shrink-0 z-10 shadow-[0_-4px_20px_rgba(16,185,129,0.3)] border-t border-emerald-400/30">
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-center text-center text-[11px] sm:text-xs tracking-wide">
             <div className="w-5 h-5 rounded-full bg-white/25 flex items-center justify-center text-white shrink-0 shadow-inner">
               <Globe size={11} className="animate-pulse text-white" />

@@ -1,6 +1,6 @@
 import { DatePicker } from '@/components/ui/DatePicker';
 import { formatDate } from '@/utils/dateUtils';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Package, 
@@ -23,7 +23,8 @@ import {
   HeartPulse,
   History,
   RotateCcw,
-  ClipboardList
+  ClipboardList,
+  Pill
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -46,6 +47,57 @@ export default function Dashboard() {
   });
 
   const [expiryHeatmap, setExpiryHeatmap] = useState<any[]>([]);
+  const [expiryStats, setExpiryStats] = useState({
+    total: 0,
+    expired: 0,
+    warning: 0,
+    safe: 0,
+    systemCount: 0,
+    manualCount: 0,
+    warningMonths: 6
+  });
+
+  const statusSegments = useMemo(() => {
+    const total = expiryStats.total;
+    if (total === 0) return [];
+
+    const segmentsData = [
+      { key: 'SAFE', value: expiryStats.safe, color: '#10b981', label: 'ปลอดภัย' },
+      { key: 'WARNING', value: expiryStats.warning, color: '#f59e0b', label: 'ใกล้หมดอายุ' },
+      { key: 'EXPIRED', value: expiryStats.expired, color: '#f43f5e', label: 'หมดอายุแล้ว' }
+    ].filter(s => s.value > 0);
+
+    const circumference = 2 * Math.PI * 34; // Radius = 34
+    let offset = 0;
+
+    return segmentsData.map(s => {
+      const strokeDasharray = `${(s.value / total) * circumference} ${circumference}`;
+      const strokeDashoffset = offset;
+      offset -= (s.value / total) * circumference;
+      return { ...s, strokeDasharray, strokeDashoffset };
+    });
+  }, [expiryStats]);
+
+  const locationSegments = useMemo(() => {
+    const total = expiryStats.total;
+    if (total === 0) return [];
+
+    const segmentsData = [
+      { key: 'MANUAL', value: expiryStats.manualCount, color: '#d946ef', label: 'ชั้นจุดจ่าย' },
+      { key: 'SYSTEM', value: expiryStats.systemCount, color: '#3b82f6', label: 'สต๊อก' }
+    ].filter(s => s.value > 0);
+
+    const circumference = 2 * Math.PI * 34; // Radius = 34
+    let offset = 0;
+
+    return segmentsData.map(s => {
+      const strokeDasharray = `${(s.value / total) * circumference} ${circumference}`;
+      const strokeDashoffset = offset;
+      offset -= (s.value / total) * circumference;
+      return { ...s, strokeDasharray, strokeDashoffset };
+    });
+  }, [expiryStats]);
+
   const [lowStockAlerts, setLowStockAlerts] = useState<any[]>([]);
   const [deadStock, setDeadStock] = useState<any[]>([]);
   const [topMoving, setTopMoving] = useState<any[]>([]);
@@ -335,6 +387,75 @@ export default function Dashboard() {
            }
         });
       }
+      // 13.3 Expiry Summary calculations
+      const { data: orgData } = await supabase.from('organization_info').select('expiry_warning_months').limit(1);
+      const warningMonthsVal = orgData?.[0]?.expiry_warning_months ?? 6;
+      const warningDays = warningMonthsVal * 30;
+
+      const { data: systemStock } = await supabase
+        .from('stock_balances')
+        .select('current_qty, lots!inner ( expiry_date )')
+        .gt('current_qty', 0)
+        .not('lots.expiry_date', 'is', null);
+
+      const { data: manualStock } = await supabase
+        .from('manual_expirations')
+        .select('qty, expiry_date');
+
+      let total = 0;
+      let expired = 0;
+      let warning = 0;
+      let safe = 0;
+      let systemCount = 0;
+      let manualCount = 0;
+
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+
+      systemStock?.forEach((item: any) => {
+        if (!item.lots?.expiry_date) return;
+        const expDate = new Date(item.lots.expiry_date);
+        const diffTime = expDate.getTime() - todayDate.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        total++;
+        systemCount++;
+        if (diffDays <= 0) {
+          expired++;
+        } else if (diffDays <= warningDays) {
+          warning++;
+        } else {
+          safe++;
+        }
+      });
+
+      manualStock?.forEach((item: any) => {
+        if (!item.expiry_date) return;
+        const expDate = new Date(item.expiry_date);
+        const diffTime = expDate.getTime() - todayDate.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        total++;
+        manualCount++;
+        if (diffDays <= 0) {
+          expired++;
+        } else if (diffDays <= warningDays) {
+          warning++;
+        } else {
+          safe++;
+        }
+      });
+
+      setExpiryStats({
+        total,
+        expired,
+        warning,
+        safe,
+        systemCount,
+        manualCount,
+        warningMonths: warningMonthsVal
+      });
+
       setDeadStock(deadStocks);
 
       // อัปเดต State สรุป
@@ -790,6 +911,188 @@ export default function Dashboard() {
                 </div>
               </div>
 
+            </div>
+          </div>
+
+          {/* ================= SECTION: EXPIRY STATUS SUMMARY ================= */}
+          <div className="glass p-6 rounded-3xl animate-fade-in-up space-y-5 border border-emerald-100">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-emerald-150 pb-3">
+              <div>
+                <h3 className="text-base font-black text-emerald-950 flex items-center gap-2">
+                  <CalendarRange className="w-5 h-5 text-emerald-600 animate-pulse" />
+                  สรุปความเสี่ยงยาหมดอายุ (Expiry Status Summary)
+                </h3>
+                <p className="text-[11px] text-emerald-700 font-semibold mt-0.5">
+                  ติดตามภาพรวมความเสี่ยงเวชภัณฑ์หมดอายุล่วงหน้า {expiryStats.warningMonths} เดือน ทั้งในคลังและจุดจ่าย
+                </p>
+              </div>
+              <Link
+                to="/expiry-tracking"
+                className="text-xs font-black text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-full border border-emerald-150 flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+              >
+                ดูตารางและจัดการข้อมูลละเอียด <ArrowRight size={14} />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6">
+              {/* KPI Cards on the Left (4 cols) */}
+              <div className="lg:col-span-4 grid grid-cols-2 gap-4">
+                {/* Card 1: All Items */}
+                <Link 
+                  to="/expiry-tracking"
+                  className="bg-white hover:bg-emerald-50/10 rounded-2xl p-4 border-t-4 border-gray-400 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                >
+                  <div className="flex justify-between items-start text-gray-400">
+                    <span className="text-[11px] font-black uppercase tracking-wider">ยาทั้งหมด</span>
+                    <Pill size={16} />
+                  </div>
+                  <div className="mt-3">
+                    <span className="text-2xl font-black text-gray-900">{expiryStats.total}</span>
+                    <span className="text-[10px] text-gray-500 font-bold block mt-0.5">รายการยาในระบบ</span>
+                  </div>
+                </Link>
+
+                {/* Card 2: Expired */}
+                <Link 
+                  to="/expiry-tracking"
+                  state={{ filter: 'EXPIRED' }}
+                  className="bg-white hover:bg-rose-50/10 rounded-2xl p-4 border-t-4 border-red-500 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                >
+                  <div className="flex justify-between items-start text-red-500">
+                    <span className="text-[11px] font-black uppercase tracking-wider">หมดอายุแล้ว</span>
+                    <ShieldAlert size={16} />
+                  </div>
+                  <div className="mt-3">
+                    <span className="text-2xl font-black text-red-600">{expiryStats.expired}</span>
+                    <span className="text-[10px] text-red-500 font-bold block mt-0.5">ต้องจัดการทำลาย/บริจาค</span>
+                  </div>
+                </Link>
+
+                {/* Card 3: Near Expiry */}
+                <Link 
+                  to="/expiry-tracking"
+                  state={{ filter: 'WARNING' }}
+                  className="bg-white hover:bg-amber-50/10 rounded-2xl p-4 border-t-4 border-orange-400 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                >
+                  <div className="flex justify-between items-start text-orange-500">
+                    <span className="text-[11px] font-black uppercase tracking-wider">ใกล้หมดอายุ</span>
+                    <Clock size={16} />
+                  </div>
+                  <div className="mt-3">
+                    <span className="text-2xl font-black text-orange-600">{expiryStats.warning}</span>
+                    <span className="text-[10px] text-orange-500 font-bold block mt-0.5">หมดอายุใน {expiryStats.warningMonths * 30} วัน</span>
+                  </div>
+                </Link>
+
+                {/* Card 4: Safe */}
+                <Link 
+                  to="/expiry-tracking"
+                  state={{ filter: 'SAFE' }}
+                  className="bg-white hover:bg-emerald-50/10 rounded-2xl p-4 border-t-4 border-emerald-400 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                >
+                  <div className="flex justify-between items-start text-emerald-500">
+                    <span className="text-[11px] font-black uppercase tracking-wider">ปลอดภัย</span>
+                    <CheckCircle size={16} />
+                  </div>
+                  <div className="mt-3">
+                    <span className="text-2xl font-black text-emerald-600">{expiryStats.safe}</span>
+                    <span className="text-[10px] text-emerald-500 font-bold block mt-0.5">ยาที่มีสภาพพร้อมใช้</span>
+                  </div>
+                </Link>
+              </div>
+
+              {/* Donut Chart 1: สถานะยา (4 cols) */}
+              <div className="lg:col-span-4 bg-white rounded-2xl p-5 shadow-sm border border-emerald-100/30 flex flex-col justify-between min-h-[180px]">
+                <div className="flex justify-between items-center">
+                  <span className="font-extrabold text-gray-900 text-xs">สถานะยา</span>
+                </div>
+                
+                <div className="flex items-center justify-center h-28 relative my-1">
+                  {expiryStats.total === 0 ? (
+                    <div className="text-gray-400 text-xs font-semibold">ไม่มีข้อมูล</div>
+                  ) : (
+                    <>
+                      <svg className="w-24 h-24 transform -rotate-90">
+                        {statusSegments.map((seg, idx) => (
+                          <circle
+                            key={idx}
+                            cx="48"
+                            cy="48"
+                            r="34"
+                            fill="transparent"
+                            stroke={seg.color}
+                            strokeWidth="9"
+                            strokeDasharray={seg.strokeDasharray}
+                            strokeDashoffset={seg.strokeDashoffset}
+                            className="transition-all duration-300 hover:stroke-[11px] cursor-pointer"
+                          />
+                        ))}
+                      </svg>
+                      <div className="absolute flex flex-col items-center justify-center">
+                        <span className="text-xl font-black text-gray-900">{expiryStats.total}</span>
+                        <span className="text-[8px] text-gray-400 font-bold uppercase tracking-wider">รายการ</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="flex justify-center gap-3 text-[10px] font-bold mt-1 flex-wrap text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded bg-emerald-500 inline-block"></span> ปลอดภัย ({expiryStats.safe})
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded bg-rose-500 inline-block"></span> หมดอายุแล้ว ({expiryStats.expired})
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded bg-amber-500 inline-block"></span> ใกล้หมดอายุ ({expiryStats.warning})
+                  </span>
+                </div>
+              </div>
+
+              {/* Donut Chart 2: จำนวนยาแยกตามจุดจัดเก็บ (4 cols) */}
+              <div className="lg:col-span-4 bg-white rounded-2xl p-5 shadow-sm border border-emerald-100/30 flex flex-col justify-between min-h-[180px]">
+                <div className="flex justify-between items-center">
+                  <span className="font-extrabold text-gray-900 text-xs">จำนวนยาแยกตามจุดจัดเก็บ</span>
+                </div>
+
+                <div className="flex items-center justify-center h-28 relative my-1">
+                  {expiryStats.total === 0 ? (
+                    <div className="text-gray-400 text-xs font-semibold">ไม่มีข้อมูล</div>
+                  ) : (
+                    <>
+                      <svg className="w-24 h-24 transform -rotate-90">
+                        {locationSegments.map((seg, idx) => (
+                          <circle
+                            key={idx}
+                            cx="48"
+                            cy="48"
+                            r="34"
+                            fill="transparent"
+                            stroke={seg.color}
+                            strokeWidth="9"
+                            strokeDasharray={seg.strokeDasharray}
+                            strokeDashoffset={seg.strokeDashoffset}
+                            className="transition-all duration-300 hover:stroke-[11px] cursor-pointer"
+                          />
+                        ))}
+                      </svg>
+                      <div className="absolute flex flex-col items-center justify-center">
+                        <span className="text-xl font-black text-gray-900">{expiryStats.total}</span>
+                        <span className="text-[8px] text-gray-400 font-bold uppercase tracking-wider">รายการ</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="flex justify-center gap-4 text-[10px] font-bold mt-1 flex-wrap text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded bg-fuchsia-500 inline-block"></span> ชั้นจุดจ่าย ({expiryStats.manualCount})
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded bg-blue-500 inline-block"></span> สต๊อก ({expiryStats.systemCount})
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
