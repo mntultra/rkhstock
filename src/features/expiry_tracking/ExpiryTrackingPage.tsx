@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { ShieldAlert, AlertTriangle, Clock, Search, Filter, Plus, Calendar } from 'lucide-react';
+import { ShieldAlert, AlertTriangle, Clock, Search, Filter, Plus, Calendar, X } from 'lucide-react';
 import AddManualExpiryModal from './AddManualExpiryModal';
 import { formatDate } from '@/utils/dateUtils';
 import { useWarehouses } from '@/hooks/useWarehouses';
