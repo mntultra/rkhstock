@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS public.manual_expirations (
 -- For existing tables, add the new columns if they do not exist
 ALTER TABLE public.manual_expirations ADD COLUMN IF NOT EXISTS manufacturer TEXT;
 ALTER TABLE public.manual_expirations ADD COLUMN IF NOT EXISTS remark TEXT;
+ALTER TABLE public.manual_expirations ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ACTIVE';
 
 -- Enable RLS
 ALTER TABLE public.manual_expirations ENABLE ROW LEVEL SECURITY;
