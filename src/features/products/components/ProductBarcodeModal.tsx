@@ -84,18 +84,32 @@ export default function ProductBarcodeModal({ productId, productName, onClose }:
     let scanner: any = null;
     const timer = setTimeout(async () => {
       try {
-        const { Html5Qrcode } = await import('html5-qrcode');
+        const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
         const element = document.getElementById(scanDivId);
         if (!element) {
           console.error("Scanner element not found in DOM");
           return;
         }
-        scanner = new Html5Qrcode(scanDivId);
+        scanner = new Html5Qrcode(scanDivId, {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.DATA_MATRIX
+          ],
+          verbose: false
+        });
         scannerRef.current = scanner;
 
         await scanner.start(
           { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 260, height: 120 } },
+          { 
+            fps: 25, 
+            qrbox: (w: number, h: number) => {
+              const size = Math.min(w, h);
+              return { width: size * 0.85, height: size * 0.45 };
+            }
+          },
           (decodedText: string) => {
             const val = decodedText.trim();
             const autoType = detectBarcodeType(val);

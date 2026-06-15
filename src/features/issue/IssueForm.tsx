@@ -27,7 +27,7 @@ import {
   FileSpreadsheet,
   RotateCcw
 } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import IssueRelationalImportModal from './IssueRelationalImportModal';
@@ -527,11 +527,19 @@ export default function IssueForm() {
     let scanner: Html5Qrcode | null = null;
     const timer = setTimeout(async () => {
       try {
-        scanner = new Html5Qrcode("reader");
+        scanner = new Html5Qrcode("reader", {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.DATA_MATRIX
+          ],
+          verbose: false
+        });
         setScannerInstance(scanner);
         await scanner.start(
           { facingMode: "environment" },
-          { fps: 10, qrbox: (w, h) => ({ width: Math.min(w, h) * 0.7, height: Math.min(w, h) * 0.35 }) },
+          { fps: 20, qrbox: (w, h) => ({ width: Math.min(w, h) * 0.85, height: Math.min(w, h) * 0.45 }) },
           (decodedText) => {
             playScanBeep();
             if (scanMode === 'PRODUCT') {

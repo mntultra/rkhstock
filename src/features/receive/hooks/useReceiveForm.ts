@@ -4,7 +4,7 @@ import { getDefaultOfficers, getMasterFiscalYears } from '@/lib/supabase/queries
 import { ProductSearchResult } from '@/types';
 import { useOfficers } from '@/hooks/useOfficers';
 import { useWarehouses } from '@/hooks/useWarehouses';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 
@@ -509,16 +509,24 @@ export function useReceiveForm() {
     
     const timer = setTimeout(async () => {
       try {
-        html5QrcodeScanner = new Html5Qrcode("reader");
+        html5QrcodeScanner = new Html5Qrcode("reader", {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.DATA_MATRIX
+          ],
+          verbose: false
+        });
         setScannerInstance(html5QrcodeScanner);
 
         await html5QrcodeScanner.start(
           { facingMode: "environment" }, // บังคับใช้งานกล้องหลัง
           {
-            fps: 10,
+            fps: 20,
             qrbox: (width, height) => {
-              const size = Math.min(width, height) * 0.7;
-              return { width: size, height: size * 0.5 }; // สี่เหลี่ยมผืนผ้าเหมาะสำหรับสแกนบาร์โค้ดยา
+              const size = Math.min(width, height) * 0.85;
+              return { width: size, height: size * 0.45 }; // สี่เหลี่ยมผืนผ้าเหมาะสำหรับสแกนบาร์โค้ดยา
             }
           },
           (decodedText) => {
