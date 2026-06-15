@@ -21,6 +21,32 @@ const BARCODE_TYPES: { value: BarcodeType; label: string }[] = [
   { value: 'Other',     label: 'อื่นๆ' },
 ];
 
+function detectBarcodeType(barcode: string): BarcodeType {
+  const trimmed = barcode.trim();
+  
+  // 1. URL or typical QR structure
+  if (/^https?:\/\//i.test(trimmed) || trimmed.includes('|') || trimmed.startsWith('{')) {
+    return 'QR';
+  }
+  
+  // 2. GS1-128 or GS1 DataMatrix (contains (01) or starts with 01 followed by 14 digits)
+  if (/(?:\(01\)|^01)\d{14}/.test(trimmed)) {
+    return 'GS1-128';
+  }
+  
+  // 3. EAN-13 (13 digits)
+  if (/^\d{13}$/.test(trimmed)) {
+    return 'EAN13';
+  }
+  
+  // 4. Code 128 (general alphanumeric 1D barcode)
+  if (/^[A-Za-z0-9\-_]{4,30}$/.test(trimmed)) {
+    return 'Code128';
+  }
+  
+  return 'Other';
+}
+
 const EMPTY_FORM = { barcode: '', trade_name: '', barcode_type: 'EAN13' as BarcodeType, notes: '' };
 
 // ============================================================
@@ -51,39 +77,57 @@ export default function ProductBarcodeModal({ productId, productName, onClose }:
 
   useEffect(() => { fetchBarcodes(); }, [productId]);
 
-  // ---- Cleanup scanner on unmount ----
-  useEffect(() => {
-    return () => { stopScanner(); };
-  }, []);
-
   // ---- Scanner ----
-  const startScanner = async () => {
-    try {
-      const { Html5Qrcode } = await import('html5-qrcode');
-      const scanner = new Html5Qrcode(scanDivId);
-      scannerRef.current = scanner;
-      setScanActive(true);
+  useEffect(() => {
+    if (!scanActive) return;
 
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 260, height: 120 } },
-        (decodedText: string) => {
-          stopScanner();
-          setForm(prev => ({ ...prev, barcode: decodedText.trim() }));
-        },
-        () => {}
-      );
-    } catch (e) {
-      console.error(e);
-      setScanActive(false);
-    }
+    let scanner: any = null;
+    const timer = setTimeout(async () => {
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        const element = document.getElementById(scanDivId);
+        if (!element) {
+          console.error("Scanner element not found in DOM");
+          return;
+        }
+        scanner = new Html5Qrcode(scanDivId);
+        scannerRef.current = scanner;
+
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 260, height: 120 } },
+          (decodedText: string) => {
+            const val = decodedText.trim();
+            const autoType = detectBarcodeType(val);
+            setForm(prev => ({
+              ...prev,
+              barcode: val,
+              barcode_type: autoType,
+            }));
+            setScanActive(false);
+          },
+          () => {}
+        );
+      } catch (e) {
+        console.error("Failed to start scanner:", e);
+        setScanActive(false);
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      if (scanner?.isScanning) {
+        scanner.stop().catch(console.error);
+      }
+      scannerRef.current = null;
+    };
+  }, [scanActive]);
+
+  const startScanner = () => {
+    setScanActive(true);
   };
 
-  const stopScanner = async () => {
-    if (scannerRef.current?.isScanning) {
-      await scannerRef.current.stop().catch(console.error);
-    }
-    scannerRef.current = null;
+  const stopScanner = () => {
     setScanActive(false);
   };
 
