@@ -3,7 +3,7 @@
 -- และปรับปรุงแก้ไข process_stock_balance_audit trigger ให้ถูกต้องตามระบบ Lot-based
 --
 -- ปัญหา:
--- 1. การ Import ใบจ่ายประวัติ (DISPENSE) ไม่ได้หักยอดออกจาก stock_balances หรือหักผิดล๊อต
+-- 1. การ Import ใบจ่ายประวัติ (ISSUE) ไม่ได้หักยอดออกจาก stock_balances หรือหักผิดล๊อต
 -- 2. ฟังก์ชัน trigger `process_stock_balance_audit` เดิมยังอ้างอิง `smi.lot_number` ซึ่งไม่มีอยู่แล้ว
 --
 -- วิธีใช้: คัดลอกโค้ดทั้งหมดนี้ไปรันใน Supabase SQL Editor
@@ -95,7 +95,7 @@ BEGIN
         IF (v_movement_id IS NULL) THEN
             SELECT smi.movement_id, 
                    (CASE WHEN sm.movement_type = 'RECEIVE' THEN 'RECEIVE'::stock_audit_action 
-                         WHEN sm.movement_type = 'DISPENSE' THEN 'DISPENSE'::stock_audit_action
+                         WHEN sm.movement_type = 'ISSUE' THEN 'ISSUE'::stock_audit_action
                          ELSE 'ADJUST'::stock_audit_action 
                     END),
                    COALESCE(auth.uid(), sm.created_by)
@@ -168,7 +168,7 @@ ALTER TABLE public.stock_balances DISABLE TRIGGER trg_stock_balances_audit;
 -- 2.2 เคลียร์ข้อมูลสต๊อกคงเหลือเดิมทั้งหมด
 TRUNCATE TABLE public.stock_balances;
 
--- 2.3 คำนวณหายอดรวมจากประวัติการรับ (RECEIVE) และการจ่าย (DISPENSE) ที่ไม่ถูกยกเลิก (Voided = false)
+-- 2.3 คำนวณหายอดรวมจากประวัติการรับ (RECEIVE) และการจ่าย (ISSUE) ที่ไม่ถูกยกเลิก (Voided = false)
 INSERT INTO public.stock_balances (
     product_id,
     warehouse_id,
@@ -206,7 +206,7 @@ FROM (
         
         UNION ALL
         
-        -- 2. ยอดหักจากการจ่ายออกจากคลัง (DISPENSE)
+        -- 2. ยอดหักจากการจ่ายออกจากคลัง (ISSUE)
         SELECT 
             smi.product_id,
             sm.from_warehouse_id AS warehouse_id,
@@ -214,7 +214,7 @@ FROM (
             -smi.qty AS net_qty
         FROM public.stock_movement_items smi
         JOIN public.stock_movements sm ON smi.movement_id = sm.id
-        WHERE sm.movement_type = 'DISPENSE' 
+        WHERE sm.movement_type = 'ISSUE' 
           AND COALESCE(sm.is_voided, false) = false
     ) AS movements
     GROUP BY product_id, warehouse_id, lot_id

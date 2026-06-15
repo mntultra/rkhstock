@@ -110,7 +110,7 @@ export default function StockCardReport() {
         const type = item.stock_movements.movement_type;
         let delta = 0;
         if (['RECEIVE', 'RETURN'].includes(type)) delta = Math.abs(item.qty || 0);
-        else if (['DISPENSE', 'DISPOSE', 'EXPIRED', 'BORROW'].includes(type)) delta = -Math.abs(item.qty || 0);
+        else if (['ISSUE', 'DISPOSE', 'EXPIRED', 'BORROW'].includes(type)) delta = -Math.abs(item.qty || 0);
         else if (type === 'ADJUST') delta = item.qty || 0;
         return sum + delta;
       }, 0) : 0;
@@ -153,7 +153,7 @@ export default function StockCardReport() {
         const type = m.stock_movements.movement_type;
         let delta = 0;
         if (['RECEIVE', 'RETURN'].includes(type)) delta = Math.abs(m.qty || 0);
-        else if (['DISPENSE', 'DISPOSE', 'EXPIRED', 'BORROW'].includes(type)) delta = -Math.abs(m.qty || 0);
+        else if (['ISSUE', 'DISPOSE', 'EXPIRED', 'BORROW'].includes(type)) delta = -Math.abs(m.qty || 0);
         else if (type === 'ADJUST') delta = m.qty || 0;
         
         currentBalance += delta;
@@ -348,7 +348,7 @@ export default function StockCardReport() {
               {/* รายการเคลื่อนไหวระหว่างงวด */}
               {movements.map((m, idx) => {
                 const isReceive = m.stock_movements.movement_type === 'RECEIVE';
-                const isDispense = m.stock_movements.movement_type === 'DISPENSE';
+                const isIssue = m.stock_movements.movement_type === 'ISSUE';
                 const isAdjust = m.stock_movements.movement_type === 'ADJUST';
                 const isDispose = m.stock_movements.movement_type === 'DISPOSE' || m.stock_movements.movement_type === 'EXPIRED';
                 
@@ -356,7 +356,7 @@ export default function StockCardReport() {
                 let qtyOut = 0;
                 
                 if (isReceive) qtyIn = Math.abs(m.qty);
-                if (isDispense || isDispose) qtyOut = Math.abs(m.qty);
+                if (isIssue || isDispose) qtyOut = Math.abs(m.qty);
                 if (isAdjust) {
                   if (m.qty > 0) qtyIn = m.qty;
                   else qtyOut = Math.abs(m.qty);
@@ -364,7 +364,7 @@ export default function StockCardReport() {
 
                 let typeLabel = m.stock_movements.movement_type;
                 if (isReceive) typeLabel = 'รับเวชภัณฑ์เข้า';
-                if (isDispense) typeLabel = 'ตัดจ่ายเวชภัณฑ์';
+                if (isIssue) typeLabel = 'ตัดจ่ายเวชภัณฑ์';
                 if (isAdjust) typeLabel = 'ปรับยอด/ตรวจนับ';
                 if (isDispose) typeLabel = 'ทำลาย/ตัดจ่ายชำรุด';
 
@@ -402,7 +402,7 @@ export default function StockCardReport() {
                   {movements.reduce((sum, m) => sum + (m.stock_movements.movement_type === 'RECEIVE' || (m.stock_movements.movement_type === 'ADJUST' && m.qty > 0) ? Math.abs(m.qty) : 0), 0).toLocaleString()}
                 </td>
                 <td className="border border-gray-300 p-2 text-right text-red-700 font-extrabold">
-                  {movements.reduce((sum, m) => sum + (m.stock_movements.movement_type === 'DISPENSE' || m.stock_movements.movement_type === 'DISPOSE' || m.stock_movements.movement_type === 'EXPIRED' || (m.stock_movements.movement_type === 'ADJUST' && m.qty < 0) ? Math.abs(m.qty) : 0), 0).toLocaleString()}
+                  {movements.reduce((sum, m) => sum + (m.stock_movements.movement_type === 'ISSUE' || m.stock_movements.movement_type === 'DISPOSE' || m.stock_movements.movement_type === 'EXPIRED' || (m.stock_movements.movement_type === 'ADJUST' && m.qty < 0) ? Math.abs(m.qty) : 0), 0).toLocaleString()}
                 </td>
                 <td className="border border-gray-300 p-2 text-right text-emerald-900 bg-emerald-100/30 font-black">
                   {(movements.length > 0 ? movements[movements.length - 1].running_balance : balanceBroughtForward).toLocaleString()}

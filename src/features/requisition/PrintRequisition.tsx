@@ -50,7 +50,7 @@ export type RequisitionItem = {
   id: string;
   product_id: string;
   qty: number;
-  dispensed_qty?: number;
+  issued_qty?: number;
   pack_size?: number;
   unit_name?: string;
   remarks?: string;

@@ -258,9 +258,9 @@ export default function BorrowForm() {
 
       if (moveError) throw moveError;
 
-      // 2. Call RPC to deduct stock (dispense_with_fefo_lock)
+      // 2. Call RPC to deduct stock (issue_with_fefo_lock)
       for (const row of validRows) {
-        const { error: rpcError } = await supabase.rpc('dispense_with_fefo_lock', {
+        const { error: rpcError } = await supabase.rpc('issue_with_fefo_lock', {
           p_movement_id: movement.id,
           p_product_id: row.product!.id,
           p_warehouse_id: warehouseId,

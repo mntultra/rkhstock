@@ -56,7 +56,7 @@ export default function ReceiveRelationalImportModal({ isOpen, onClose, onSucces
     const wb = XLSX.utils.book_new();
 
     const headers = [
-      ['doc_no', 'doc_date', 'fiscal_year', 'ref_doc_no', 'ref_doc_date', 'from_warehouse', 'to_warehouse', 'approver_main_warehouse', 'dispenser_main_warehouse', 'receiver', 'note'],
+      ['doc_no', 'doc_date', 'fiscal_year', 'ref_doc_no', 'ref_doc_date', 'from_warehouse', 'to_warehouse', 'approver_main_warehouse', 'issuer_main_warehouse', 'receiver', 'note'],
       ['REC-2026-001', '31/12/2026', '2569', 'PO-2026-999', '25/12/2026', 'คลังยาหลัก', 'คลังยาย่อย', 'ชื่อผู้อนุมัติ(คลังหลัก)', 'ชื่อผู้จ่าย(คลังหลัก)', 'ชื่อผู้รับ', 'นำเข้าประวัติย้อนหลัง']
     ];
     
@@ -170,7 +170,7 @@ export default function ReceiveRelationalImportModal({ isOpen, onClose, onSucces
           from_warehouse_id: hRow.from_warehouse ? findWh(hRow.from_warehouse) : null,
           to_warehouse_id: hRow.to_warehouse ? findWh(hRow.to_warehouse) : null,
           approver_main_warehouse: hRow.approver_main_warehouse ? findOff(hRow.approver_main_warehouse) : null,
-          dispenser_main_warehouse: hRow.dispenser_main_warehouse ? findOff(hRow.dispenser_main_warehouse) : null,
+          issuer_main_warehouse: hRow.issuer_main_warehouse ? findOff(hRow.issuer_main_warehouse) : null,
           receiver: hRow.receiver ? findOff(hRow.receiver) : null,
           note: String(hRow.note || '').trim(),
           items: groupItems,
@@ -220,7 +220,7 @@ export default function ReceiveRelationalImportModal({ isOpen, onClose, onSucces
             to_warehouse_id: group.to_warehouse_id,
             receiver: group.receiver,
             approver_main_warehouse: group.approver_main_warehouse,
-            dispenser_main_warehouse: group.dispenser_main_warehouse,
+            issuer_main_warehouse: group.issuer_main_warehouse,
             note: group.note,
             created_by: user.id,
             created_by_position: creator?.position || null
@@ -372,7 +372,7 @@ export default function ReceiveRelationalImportModal({ isOpen, onClose, onSucces
                           <p><span className="font-semibold text-gray-500">เลขที่อ้างอิง:</span> <span className="font-bold text-gray-900">{g.ref_doc_no || '-'}</span></p>
                           <p><span className="font-semibold text-gray-500">วันที่อ้างอิง:</span> <span className="font-bold text-gray-900">{g.ref_doc_date || '-'}</span></p>
                           <p><span className="font-semibold text-gray-500">ผู้อนุมัติ:</span> <span className="font-bold text-gray-900">{g.approver_main_warehouse ? officers.find(o => o.id === g.approver_main_warehouse)?.full_name : '-'}</span></p>
-                          <p><span className="font-semibold text-gray-500">ผู้จ่าย:</span> <span className="font-bold text-gray-900">{g.dispenser_main_warehouse ? officers.find(o => o.id === g.dispenser_main_warehouse)?.full_name : '-'}</span></p>
+                          <p><span className="font-semibold text-gray-500">ผู้จ่าย:</span> <span className="font-bold text-gray-900">{g.issuer_main_warehouse ? officers.find(o => o.id === g.issuer_main_warehouse)?.full_name : '-'}</span></p>
                           
                           {g.note && <p className="col-span-2 lg:col-span-4 mt-1"><span className="font-semibold text-gray-500">หมายเหตุ:</span> <span className="font-bold text-gray-900">{g.note}</span></p>}
                         </div>

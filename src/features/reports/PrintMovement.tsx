@@ -91,7 +91,7 @@ export default function PrintMovement() {
         }
 
         // Attach officer names back to movement object
-        mov.actor = { full_name: officersMap[mov.actor_id] || mov.receiver || mov.dispenser_main_warehouse || '' };
+        mov.actor = { full_name: officersMap[mov.actor_id] || mov.receiver || mov.issuer_main_warehouse || '' };
         mov.created_by_user = { full_name: officersMap[mov.created_by] || '' };
         mov.voided_by_user = { full_name: officersMap[mov.voided_by] || '' };
 
@@ -192,9 +192,9 @@ export default function PrintMovement() {
   }
 
   const isReceive = movement.movement_type === 'RECEIVE';
-  const isDispense = movement.movement_type === 'DISPENSE';
+  const isIssue = movement.movement_type === 'ISSUE';
   const docTitle = isReceive ? 'ใบรับเวชภัณฑ์ (Receive Voucher)' :
-    isDispense ? 'ใบจ่ายเวชภัณฑ์ (Issue Voucher)' :
+    isIssue ? 'ใบจ่ายเวชภัณฑ์ (Issue Voucher)' :
       'เอกสารแสดงความเคลื่อนไหวคลัง (Movement Voucher)';
   const docRef = movement.doc_no || `REF-${movement.id.substring(0, 8).toUpperCase()}`;
 
@@ -246,7 +246,7 @@ export default function PrintMovement() {
             </div>
             <div className="text-right space-y-1">
               <p className="text-xl font-bold font-sans">{docRef}</p>
-              {!isDispense && (
+              {!isIssue && (
                 <p className="text-sm font-medium">วันที่ทำรายการ: {new Date(movement.created_at).toLocaleString('th-TH')}</p>
               )}
               {movement.is_voided && (
@@ -263,7 +263,7 @@ export default function PrintMovement() {
             <div className="space-y-3">
               <div className="flex items-start">
                 <span className="w-32 font-bold text-gray-600 shrink-0">
-                  {isDispense ? 'วันที่จ่าย:' : 'วันที่บนเอกสาร:'}
+                  {isIssue ? 'วันที่จ่าย:' : 'วันที่บนเอกสาร:'}
                 </span>
                 <span className="font-semibold">{formatDate(movement.doc_date)}</span>
               </div>
@@ -275,7 +275,7 @@ export default function PrintMovement() {
                 </div>
               )}
 
-              {isDispense && (
+              {isIssue && (
                 <>
                   <div className="flex items-start">
                     <span className="w-32 font-bold text-gray-600 shrink-0">คลังต้นทาง:</span>
@@ -297,7 +297,7 @@ export default function PrintMovement() {
                 </div>
               )}
 
-              {!isDispense && (
+              {!isIssue && (
                 <>
                   <div className="flex items-start">
                     <span className="w-32 font-bold text-gray-600 shrink-0">เอกสารอ้างอิง:</span>
@@ -320,7 +320,7 @@ export default function PrintMovement() {
                 <span className="font-semibold">{movement.fiscal_year || calculateThaiFiscalYear(movement.doc_date)}</span>
               </div>
 
-              {!isDispense && (
+              {!isIssue && (
                 <div className="flex items-start">
                   <span className="w-32 font-bold text-gray-600 shrink-0">แหล่งที่มา/ไป:</span>
                   <span className="font-semibold">{movement.source_location || '-'}</span>
@@ -329,12 +329,12 @@ export default function PrintMovement() {
 
               <div className="flex items-start">
                 <span className="w-32 font-bold text-gray-600 shrink-0">
-                  {isReceive ? 'ผู้รับเวชภัณฑ์:' : isDispense ? 'ผู้จ่ายเวชภัณฑ์:' : 'ผู้รับ/ผู้เบิก:'}
+                  {isReceive ? 'ผู้รับเวชภัณฑ์:' : isIssue ? 'ผู้จ่ายเวชภัณฑ์:' : 'ผู้รับ/ผู้เบิก:'}
                 </span>
                 <span className="font-semibold">{movement.actor?.full_name || '-'}</span>
               </div>
 
-              {isDispense && movement.creatorName && (
+              {isIssue && movement.creatorName && (
                 <div className="flex items-start">
                   <span className="w-32 font-bold text-gray-600 shrink-0">ผู้บันทึกข้อมูล:</span>
                   <span className="font-semibold">
@@ -399,10 +399,10 @@ export default function PrintMovement() {
                   {isReceive ? items.reduce((sum, item) => sum + Math.abs(item.qty), 0).toLocaleString() : ''}
                 </td>
                 <td colSpan={2} className="py-4 px-1 text-right font-bold">
-                  {isDispense ? 'รวมมูลค่าจ่าย:' : ''}
+                  {isIssue ? 'รวมมูลค่าจ่าย:' : ''}
                 </td>
                 <td className="py-4 px-1 text-right font-black text-lg">
-                  {isDispense 
+                  {isIssue 
                     ? items.reduce((sum, item) => sum + (Math.abs(item.qty) * (item.unit_price || 0)), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
                     : ''
                   }

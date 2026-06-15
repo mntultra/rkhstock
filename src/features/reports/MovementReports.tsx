@@ -7,7 +7,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 
 export default function MovementReports() {
   const [searchParams] = useSearchParams();
-  const [reportType, setReportType] = useState(searchParams.get('type') || 'RECEIVE'); // RECEIVE, DISPENSE, ADJUST
+  const [reportType, setReportType] = useState(searchParams.get('type') || 'RECEIVE'); // RECEIVE, ISSUE, ADJUST
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setDate(1); 
@@ -127,7 +127,7 @@ export default function MovementReports() {
 
   const getReportTitle = () => {
     if (reportType === 'RECEIVE') return 'รายงานการรับเวชภัณฑ์เข้าคลัง';
-    if (reportType === 'DISPENSE') return 'รายงานการตัดจ่ายเวชภัณฑ์';
+    if (reportType === 'ISSUE') return 'รายงานการตัดจ่ายเวชภัณฑ์';
     if (reportType === 'ADJUST') return 'รายงานการปรับยอด/ตรวจนับ';
     return 'รายงานสรุปการเคลื่อนไหวคลัง';
   };
@@ -159,7 +159,7 @@ export default function MovementReports() {
               className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold focus:ring-2 focus:ring-blue-100 outline-none text-blue-900 cursor-pointer transition-all shadow-sm"
             >
               <option value="RECEIVE">รายงานการรับเวชภัณฑ์เข้า (Receives)</option>
-              <option value="DISPENSE">รายงานการตัดจ่ายเวชภัณฑ์ (Dispenses)</option>
+              <option value="ISSUE">รายงานการตัดจ่ายเวชภัณฑ์ (Issues)</option>
               <option value="ADJUST">รายงานการตรวจนับ/ปรับยอด (Adjustments)</option>
               <option value="DISPOSE">รายงานการทำลาย/ยาหมดอายุ (Disposals)</option>
               <option value="BORROW">รายงานการให้ยืมเวชภัณฑ์ (Borrowings)</option>

@@ -44,7 +44,8 @@ const menuGroups = [
     items: [
       { name: 'Requisition', thName: '(เบิกเวชภัณฑ์)', path: '/requisition/new', icon: <FileText size={18} /> },
       { name: 'Receive', thName: '(รับเวชภัณฑ์เข้า)', path: '/receive', icon: <PackagePlus size={18} /> },
-      { name: 'Dispense', thName: '(จ่ายเวชภัณฑ์)', path: '/dispense', icon: <PackageMinus size={18} /> },
+      { name: 'Issue', thName: '(จ่ายเวชภัณฑ์)', path: '/issue', icon: <PackageMinus size={18} /> },
+      { name: 'Expired & Disposal', thName: '(ตัดจำหน่ายเวชภัณฑ์)', path: '/expired', icon: <Trash size={18} className="text-red-400" /> },
     ]
   },
   {
@@ -52,8 +53,7 @@ const menuGroups = [
     items: [
       { name: 'Stock', thName: '(เวชภัณฑ์คงเหลือ)', path: '/stock', icon: <Boxes size={18} /> },
       { name: 'Stock Adjustment', thName: '(ตรวจนับ & ปรับยอดคลัง)', path: '/stock/adjust', icon: <ClipboardCheck size={18} /> },
-      { name: 'Expiry Tracking', thName: '(ติดตามยาใกล้หมดอายุ)', path: '/expiry-tracking', icon: <Clock size={18} /> },
-      { name: 'Expired & Disposal', thName: '(ตัดจำหน่ายยาหมดอายุ)', path: '/expired', icon: <Trash size={18} className="text-red-400" /> },
+      { name: 'Expiry Tracking', thName: '(ติดตามเวชภัณฑ์ใกล้หมดอายุ)', path: '/expiry-tracking', icon: <Clock size={18} /> },
     ]
   },
   {
@@ -69,7 +69,8 @@ const menuGroups = [
       { name: 'Stock Card', thName: '(บัญชีคุมเวชภัณฑ์)', path: '/reports/stock-card', icon: <FileSpreadsheet size={18} /> },
       { name: 'Requisition History', thName: '(ประวัติการขอเบิก)', path: '/requisition/history', icon: <ClipboardCheck size={18} /> },
       { name: 'Stock Movements', thName: '(รายงานการเคลื่อนไหวคลัง)', path: '/reports/movements', icon: <Activity size={18} /> },
-      { name: 'Expiry Tracking Report', thName: '(รายงานยาใกล้หมดอายุ)', path: '/expiry-tracking', icon: <Clock size={18} className="text-orange-400" /> },
+      { name: 'Expiry Tracking Report', thName: '(รายงานเวชภัณฑ์ใกล้หมดอายุ)', path: '/expiry-tracking', icon: <Clock size={18} className="text-orange-400" /> },
+      { name: 'Inventory Analysis', thName: '(อัตราสำรอง & มูลค่าคงคลัง)', path: '/reports/inventory-analysis', icon: <Boxes size={18} className="text-emerald-500" /> },
       { name: 'Unfulfilled Report', thName: '(รายงานเวชภัณฑ์ค้างจ่าย)', path: '/reports/unfulfilled', icon: <FileX size={18} className="text-orange-500" /> },
       { name: 'Negative Stock Report', thName: '(รายงานคลังติดลบ)', path: '/reports/negative-stock', icon: <AlertTriangle size={18} className="text-red-500" /> },
     ]

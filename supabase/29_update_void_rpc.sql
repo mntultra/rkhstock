@@ -80,9 +80,9 @@ BEGIN
               AND lot_id = item.lot_id;
               
         -- ====================================================================
-        -- กรณี DISPENSE, DISPOSE หรือ BORROW: คืนยอดโดยการ "บวกสต๊อกกลับ"
+        -- กรณี ISSUE, DISPOSE หรือ BORROW: คืนยอดโดยการ "บวกสต๊อกกลับ"
         -- ====================================================================
-        ELSIF v_movement_type IN ('DISPENSE', 'DISPOSE', 'BORROW') THEN
+        ELSIF v_movement_type IN ('ISSUE', 'DISPOSE', 'BORROW') THEN
             IF EXISTS (
                 SELECT 1 FROM stock_balances 
                 WHERE product_id = item.product_id 

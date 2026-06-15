@@ -35,6 +35,31 @@
   --shadow-lg: 0 16px 40px rgba(20, 83, 45, 0.12);
   --shadow-xl: 0 24px 60px rgba(20, 83, 45, 0.16);
   --shadow-glass: 0 8px 32px 0 rgba(34, 197, 94, 0.1);
+
+  /* Custom half-step theme colors used in the application */
+  --color-red-150: #fee2e2;
+  --color-red-450: #f87171;
+  --color-red-650: #cc1f1f;
+  
+  --color-rose-150: #ffe4e6;
+  --color-rose-550: #e11d48;
+  
+  --color-orange-650: #ea580c;
+  
+  --color-yellow-650: #d97706;
+  
+  --color-amber-550: #d97706;
+  
+  --color-emerald-150: #d1fae5;
+  --color-emerald-850: #064e3b;
+  
+  --color-indigo-650: #4f46e5;
+  
+  --color-gray-150: #f3f4f6;
+  --color-gray-650: #4b5563;
+  --color-gray-750: #374151;
+  
+  --color-neutral-550: #737373;
 }
 
 /* Base resets & layout styling */

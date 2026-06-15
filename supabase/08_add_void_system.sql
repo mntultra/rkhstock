@@ -53,8 +53,8 @@ BEGIN
               AND warehouse_id = v_to_warehouse_id
               AND lot_number = item.lot_number;
               
-        ELSIF v_movement_type IN ('DISPENSE', 'DISPOSE') THEN
-            -- To void dispense/dispose, we must ADD back to stock_balances. (qty in items is negative)
+        ELSIF v_movement_type IN ('ISSUE', 'DISPOSE') THEN
+            -- To void issue/dispose, we must ADD back to stock_balances. (qty in items is negative)
             UPDATE stock_balances
             SET current_qty = current_qty + ABS(item.qty)
             WHERE product_id = item.product_id 

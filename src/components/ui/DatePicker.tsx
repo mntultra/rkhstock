@@ -8,6 +8,7 @@ interface DatePickerProps {
   className?: string;
   placeholder?: string;
   disabled?: boolean;
+  required?: boolean;
   onKeyDown?: (e: React.KeyboardEvent<HTMLElement>) => void;
 }
 
@@ -95,7 +96,7 @@ const parseRawDateString = (text: string): Date | null => {
 };
 
 export const DatePicker = forwardRef<any, DatePickerProps>(
-  ({ value, onChange, className, placeholder, disabled, onKeyDown }, ref) => {
+  ({ value, onChange, className, placeholder, disabled, required, onKeyDown }, ref) => {
     // Parsing the YYYY-MM-DD string into a local Date object without time shifts
     const parsedDate = (typeof value === 'string' && value) ? new Date(value + 'T00:00:00') : null;
     const selectedDate = parsedDate && !isNaN(parsedDate.getTime()) ? parsedDate : null;
@@ -154,6 +155,7 @@ export const DatePicker = forwardRef<any, DatePickerProps>(
         className={className}
         placeholderText={placeholder || "dd/mm/yyyy"}
         disabled={disabled}
+        required={required}
         wrapperClassName="w-full"
       />
     );

@@ -30,9 +30,9 @@ import {
 import { Html5Qrcode } from 'html5-qrcode';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import DispenseRelationalImportModal from './DispenseRelationalImportModal';
+import IssueRelationalImportModal from './IssueRelationalImportModal';
 import { DatePicker } from '@/components/ui/DatePicker';
-import { useDispenseDraft, formatDraftTimestamp, DispenseDraftPayload, DraftRecord } from '@/hooks/useDispenseDraft';
+import { useIssueDraft, formatDraftTimestamp, IssueDraftPayload, DraftRecord } from '@/hooks/useIssueDraft';
 
 // ─── Custom Officer Dropdown ─────────────────────────────────────────────────────
 function CustomOfficerSelect({ value, onChange, officers, placeholder = '-- เลือกเจ้าหน้าที่ --' }: {
@@ -235,7 +235,7 @@ function CustomLotSelect({ value, onChange, options, hasError, setCellRef, onKey
   );
 }
 
-interface DispenseRow {
+interface IssueRow {
   id: string;
   product: ProductSearchResult | null;
   qty: number | '';
@@ -248,7 +248,7 @@ interface DispenseRow {
   remark?: string;
 }
 
-interface DispenseResultItem {
+interface IssueResultItem {
   generic_name: string;
   qty: number;
   lots: { lot_number: string; qty: number }[];
@@ -258,7 +258,7 @@ interface DispenseResultItem {
 const COLUMNS = ['qty', 'selected_lot', 'remark'] as const;
 type NavColumn = typeof COLUMNS[number];
 
-export default function DispenseForm() {
+export default function IssueForm() {
   const navigate = useNavigate();
   const { warehouses, isLoading: isWarehousesLoading } = useWarehouses();
   const { officers } = useOfficers(true);
@@ -277,7 +277,7 @@ export default function DispenseForm() {
   const [docDate, setDocDate] = useState(new Date().toISOString().split('T')[0]);
   const [actorId, setActorId] = useState(''); // ผู้จ่ายเวชภัณฑ์ (คลังย่อย)
   const [headerNote, setHeaderNote] = useState(''); // หมายเหตุ
-  const [dispenseDocId, setDispenseDocId] = useState<string | null>(null);
+  const [issueDocId, setIssueDocId] = useState<string | null>(null);
 
   // Scanner States
   const [activeScanRowId, setActiveScanRowId] = useState<string | null>(null);
@@ -286,7 +286,7 @@ export default function DispenseForm() {
   const [scannerError, setScannerError] = useState<string | null>(null);
 
   const initialId = useRef(crypto.randomUUID());
-  const [rows, setRows] = useState<DispenseRow[]>(() => [
+  const [rows, setRows] = useState<IssueRow[]>(() => [
     { id: initialId.current, product: null, qty: '', pack_size: 1, unit_name: '', selected_lot: '', totalStock: 0, availableBalances: [], remark: '' }
   ]);
   const rowsRef = useRef(rows);
@@ -296,15 +296,15 @@ export default function DispenseForm() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-  const [invoiceResults, setInvoiceResults] = useState<DispenseResultItem[] | null>(null);
+  const [invoiceResults, setInvoiceResults] = useState<IssueResultItem[] | null>(null);
 
   // ─── Draft (IndexedDB auto-save) ─────────────────────────────────────────
-  const { scheduleSave, loadDraft, clearDraft } = useDispenseDraft({
+  const { scheduleSave, loadDraft, clearDraft } = useIssueDraft({
     userId: currentUserId,
   });
 
   // Draft restore banner state
-  const [pendingDraft, setPendingDraft] = useState<{ savedAt: string; payload: DispenseDraftPayload } | null>(null);
+  const [pendingDraft, setPendingDraft] = useState<{ savedAt: string; payload: IssueDraftPayload } | null>(null);
   // Use a ref (not state) to prevent re-render race conditions on first mount
   const draftCheckedRef = useRef(false);
 
@@ -328,7 +328,7 @@ export default function DispenseForm() {
     // Only auto-save if there is at least one row with a product selected
     const hasData = rows.some(r => r.product !== null);
     if (!hasData) return;
-    const payload: DispenseDraftPayload = {
+    const payload: IssueDraftPayload = {
       warehouseId, toWarehouseId, actorId, docDate, headerNote,
       rows: rows.map(r => ({
         id: r.id,
@@ -399,8 +399,8 @@ export default function DispenseForm() {
         setWarehouseId(sub?.id || warehouses[0].id);
       }
       if (!toWarehouseId) {
-        const dispensePoint = warehouses.find(w => /จุดจ่าย/i.test(w.name)) || warehouses[0];
-        setToWarehouseId(dispensePoint?.id || warehouses[0].id);
+        const issuePoint = warehouses.find(w => /จุดจ่าย/i.test(w.name)) || warehouses[0];
+        setToWarehouseId(issuePoint?.id || warehouses[0].id);
       }
     }
   }, [warehouses]);
@@ -412,8 +412,8 @@ export default function DispenseForm() {
         const { data } = await supabase.from('default_officers').select('*');
         if (!data) return;
         const find = (key: string) => data.find((o: any) => o.role_key === key)?.user_id || '';
-        const dispenser = find('dispenser_sub_warehouse'); // ผู้จ่าย
-        if (dispenser) setActorId(dispenser);
+        const issuer = find('issuer_sub_warehouse'); // ผู้จ่าย
+        if (issuer) setActorId(issuer);
       } catch (e) { console.error(e); }
     };
     loadDefaults();
@@ -613,7 +613,7 @@ export default function DispenseForm() {
     }));
   };
 
-  const recalculateErrors = (currentRows: DispenseRow[]) => {
+  const recalculateErrors = (currentRows: IssueRow[]) => {
     return currentRows.map(r => {
       if (!r.product || r.qty === '') return { ...r, previewError: false };
       const usedProductQty = currentRows
@@ -753,7 +753,7 @@ export default function DispenseForm() {
     // Sort available balances in FEFO (already sorted by expiry date in availableBalances)
     const lots = row.availableBalances;
     let remainingQty = qtyToAllocate;
-    const newRows: DispenseRow[] = [];
+    const newRows: IssueRow[] = [];
     
     for (const lot of lots) {
       if (remainingQty <= 0) break;
@@ -797,10 +797,10 @@ export default function DispenseForm() {
     setRows([{ id: crypto.randomUUID(), product: null, qty: '' as number | '', pack_size: 1, unit_name: '', selected_lot: '', totalStock: 0, availableBalances: [], remark: '' }]);
   };
 
-  const handleSaveDispense = async () => {
+  const handleSaveIssue = async () => {
     // Validate and build final rows by simulating cumulative stock deduction
     let hasError = false;
-    const finalRows: DispenseRow[] = [];
+    const finalRows: IssueRow[] = [];
     const virtualStock = new Map<string, number>(); 
     const virtualTotalStock = new Map<string, number>();
 
@@ -876,7 +876,7 @@ export default function DispenseForm() {
     if (hasError) { alert('พบข้อผิดพลาด "สต็อกในคลังไม่เพียงพอ" มีการเบิกรายการซ้ำจนสต็อกรวมหมด หรือระบุจำนวนที่เกินจริง กรุณาตรวจสอบจำนวนจ่ายอีกครั้ง'); return; }
     if (!confirm(`ยืนยันการบันทึกเอกสารตัดจ่ายเวชภัณฑ์? ทั้งหมด ${finalRows.length} รายการ`)) return;
 
-    setIsSubmitting(true); setSuccessMsg(''); setInvoiceResults(null); setDispenseDocId(null);
+    setIsSubmitting(true); setSuccessMsg(''); setInvoiceResults(null); setIssueDocId(null);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -886,7 +886,7 @@ export default function DispenseForm() {
       const { data: movement, error: moveError } = await supabase
         .from('stock_movements')
         .insert({
-          movement_type: 'DISPENSE',
+          movement_type: 'ISSUE',
           from_warehouse_id: warehouseId,
           to_warehouse_id: toWarehouseId,
           doc_date: docDate,
@@ -899,9 +899,9 @@ export default function DispenseForm() {
         .single();
 
       if (moveError) throw moveError;
-      setDispenseDocId(movement.id);
+      setIssueDocId(movement.id);
 
-      const finalInvoiceList: DispenseResultItem[] = [];
+      const finalInvoiceList: IssueResultItem[] = [];
 
       for (const row of validRows) {
         const lotData = row.availableBalances.find(b => b.lot_number === row.selected_lot)!;
@@ -956,7 +956,7 @@ export default function DispenseForm() {
       setHeaderNote('');
 
     } catch (err: any) {
-      console.error('Error saving dispense transaction:', err);
+      console.error('Error saving issue transaction:', err);
       alert('เกิดข้อผิดพลาดในการตัดจ่ายสต๊อก: ' + (err.message === 'INSUFFICIENT_STOCK' ? 'สต๊อกคงเหลือเปลี่ยนไประหว่างทำรายการ กรุณาดึงข้อมูลสต๊อกใหม่' : err.message));
     } finally {
       setIsSubmitting(false);
@@ -1031,7 +1031,7 @@ export default function DispenseForm() {
           <Button variant="outline" onClick={() => setIsImportModalOpen(true)} className="border-emerald-200 text-emerald-700 hover:bg-emerald-50" icon={<FileSpreadsheet size={18} />}>
             นำเข้าประวัติจาก Excel
           </Button>
-          <Button variant="outline" onClick={() => navigate('/reports/movements?type=DISPENSE')} icon={<History size={18} />}>
+          <Button variant="outline" onClick={() => navigate('/reports/movements?type=ISSUE')} icon={<History size={18} />}>
             ประวัติการจ่าย (Void)
           </Button>
         </div>
@@ -1041,7 +1041,7 @@ export default function DispenseForm() {
         <div>
           <label className="block text-sm font-bold text-gray-700 mb-1">เลขที่เอกสาร</label>
           <div className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm font-bold text-gray-500 font-mono flex items-center justify-between">
-            <span>DIS{docDate.replace(/-/g, '')}-XX</span>
+            <span>ISS{docDate.replace(/-/g, '')}-XX</span>
             <span className="text-[10px] bg-gray-200 px-1.5 py-0.5 rounded uppercase tracking-wider">Auto</span>
           </div>
         </div>
@@ -1305,7 +1305,7 @@ export default function DispenseForm() {
             <Button type="button" variant="outline" onClick={handleAddRow} disabled={isSubmitting} className="flex-1 lg:hidden bg-white border-emerald-200 text-emerald-700 shadow-sm" icon={<Plus size={20} />}>
               เพิ่ม
             </Button>
-            <Button type="button" onClick={handleSaveDispense} disabled={isSubmitting || totalItemsCount === 0} icon={isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={20} />} size="lg" className="flex-[2] lg:flex-none shadow-emerald-500/30 shadow-lg lg:shadow-none text-base">
+            <Button type="button" onClick={handleSaveIssue} disabled={isSubmitting || totalItemsCount === 0} icon={isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={20} />} size="lg" className="flex-[2] lg:flex-none shadow-emerald-500/30 shadow-lg lg:shadow-none text-base">
               {isSubmitting ? 'กำลังจัดสรร...' : 'บันทึกใบจ่ายเวชภัณฑ์'}
             </Button>
           </div>
@@ -1378,15 +1378,15 @@ export default function DispenseForm() {
               </div>
             </div>
             <div className="mt-8 flex justify-between items-center border-t border-white/10 pt-6">
-              {dispenseDocId ? (
+              {issueDocId ? (
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => navigate(`/movement/print/${dispenseDocId}`)} icon={<Printer size={18} />} className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 transition-colors bg-transparent">พิมพ์ใบจ่ายเวชภัณฑ์</Button>
+                  <Button variant="outline" onClick={() => navigate(`/movement/print/${issueDocId}`)} icon={<Printer size={18} />} className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 transition-colors bg-transparent">พิมพ์ใบจ่ายเวชภัณฑ์</Button>
                   <Button variant="outline" onClick={async () => {
                     if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการ Void (ยกเลิก) รายการนี้? การกระทำนี้ไม่สามารถย้อนกลับได้ และจะคืนยอดสต๊อกกลับไป')) return;
                     try {
                       const { data: { user } } = await supabase.auth.getUser();
                       if (!user) throw new Error('ไม่พบข้อมูลผู้ใช้');
-                      const { error } = await supabase.rpc('void_stock_movement', { p_movement_id: dispenseDocId, p_user_id: user.id });
+                      const { error } = await supabase.rpc('void_stock_movement', { p_movement_id: issueDocId, p_user_id: user.id });
                       if (error) throw error;
                       alert('Void รายการสำเร็จ! (คืนสต๊อกแล้ว)');
                       setInvoiceResults(null);
@@ -1500,7 +1500,7 @@ export default function DispenseForm() {
         </div>
       )}
 
-      <DispenseRelationalImportModal
+      <IssueRelationalImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onSuccess={() => {

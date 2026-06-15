@@ -10,7 +10,7 @@ import Dashboard from './features/dashboard/Dashboard'
 import RequisitionForm from './features/requisition/RequisitionForm'
 import PrintRequisition from './features/requisition/PrintRequisition'
 import RequisitionHistory from './features/requisition/RequisitionHistory'
-import DispenseForm from './features/dispense/DispenseForm'
+import IssueForm from './features/issue/IssueForm'
 import ReceiveForm from './features/receive/ReceiveForm'
 import ExpiredForm from './features/expired/ExpiredForm'
 import ExpiryTrackingPage from './features/expiry_tracking/ExpiryTrackingPage'
@@ -30,6 +30,7 @@ import PrintLabelPage from './features/stock/PrintLabelPage'
 import DatabaseManagementPage from './features/database/DatabaseManagementPage'
 import KeyboardShortcutsPage from './features/help/KeyboardShortcutsPage'
 import UnfulfilledReport from './features/reports/UnfulfilledReport'
+import InventoryAnalysisReport from './features/reports/InventoryAnalysisReport'
 
 // Borrow / Return System
 import BorrowReturnPage from './features/borrow/BorrowReturnPage'
@@ -53,7 +54,7 @@ function App() {
           <Route path="/requisition/new" element={<RequisitionForm />} />
           <Route path="/requisition/edit/:id" element={<RequisitionForm />} />
           <Route path="/requisition/history" element={<RequisitionHistory />} />
-          <Route path="/dispense" element={<DispenseForm />} />
+          <Route path="/issue" element={<IssueForm />} />
           <Route path="/expired" element={<ExpiredForm />} />
           <Route path="/expiry-tracking" element={<ExpiryTrackingPage />} />
           <Route path="/receive" element={<ReceiveForm />} />
@@ -69,6 +70,7 @@ function App() {
           <Route path="/reports/negative-stock" element={<NegativeStockReport />} />
           <Route path="/reports/negative-stock/analysis" element={<NegativeStockAnalysis />} />
           <Route path="/reports/unfulfilled" element={<UnfulfilledReport />} />
+          <Route path="/reports/inventory-analysis" element={<InventoryAnalysisReport />} />
           <Route path="/products" element={<ProductManagementPage />} />
           <Route path="/officers" element={<OfficerManagementPage />} />
           <Route path="/users" element={<UserManagementPage />} />

@@ -7,13 +7,13 @@ import { Alert } from '@/components/ui/Alert';
 import { useOfficers } from '@/hooks/useOfficers';
 import { useWarehouses } from '@/hooks/useWarehouses';
 
-interface DispenseRelationalImportModalProps {
+interface IssueRelationalImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export default function DispenseRelationalImportModal({ isOpen, onClose, onSuccess }: DispenseRelationalImportModalProps) {
+export default function IssueRelationalImportModal({ isOpen, onClose, onSuccess }: IssueRelationalImportModalProps) {
   const [step, setStep] = useState<'upload' | 'processing' | 'preview' | 'importing'>('upload');
   const [error, setError] = useState('');
   const [parsedGroups, setParsedGroups] = useState<any[]>([]);
@@ -56,19 +56,19 @@ export default function DispenseRelationalImportModal({ isOpen, onClose, onSucce
     const wb = XLSX.utils.book_new();
 
     const headers = [
-      ['doc_no', 'doc_date', 'from_warehouse', 'to_warehouse', 'dispenser', 'note'],
-      ['DIS-2026-001', '31/12/2026', 'คลังยาหลัก', 'คลังยาย่อย', 'ชื่อผู้จ่าย', 'นำเข้าประวัติย้อนหลัง']
+      ['doc_no', 'doc_date', 'from_warehouse', 'to_warehouse', 'issuer', 'note'],
+      ['ISS-2026-001', '31/12/2026', 'คลังยาหลัก', 'คลังยาย่อย', 'ชื่อผู้จ่าย', 'นำเข้าประวัติย้อนหลัง']
     ];
     
     const items = [
       ['doc_no', 'drug_code', 'qty', 'lot_number', 'remark'],
-      ['DIS-2026-001', '1000001', 500, 'L26001', 'เบิกปกติ'],
-      ['DIS-2026-001', '1000002', 100, 'L26002', '']
+      ['ISS-2026-001', '1000001', 500, 'L26001', 'เบิกปกติ'],
+      ['ISS-2026-001', '1000002', 100, 'L26002', '']
     ];
 
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(headers), 'ใบตัดจ่าย (Headers)');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(items), 'รายการ (Items)');
-    XLSX.writeFile(wb, 'RKHSTOCK_Dispense_Import_Relational_Template.xlsx');
+    XLSX.writeFile(wb, 'RKHSTOCK_Issue_Import_Relational_Template.xlsx');
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,7 +106,7 @@ export default function DispenseRelationalImportModal({ isOpen, onClose, onSucce
         dbProducts.forEach(p => prodMap.set(String(p.drug_code).trim(), p));
       }
 
-      // We might need stock balances to get existing expiry_date and unit_price for the dispensed lot
+      // We might need stock balances to get existing expiry_date and unit_price for the issued lot
       const { data: rawStockBalances } = await supabase
         .from('stock_balances')
         .select('product_id, warehouse_id, current_qty, lots(lot_number, expiry_date, unit_price)');
@@ -197,10 +197,10 @@ export default function DispenseRelationalImportModal({ isOpen, onClose, onSucce
           doc_date: parseExcelDate(hRow.doc_date) || new Date().toISOString().split('T')[0],
           from_warehouse_id: fromWhId,
           to_warehouse_id: toWhId,
-          dispenser: hRow.dispenser ? findOff(hRow.dispenser) : null,
+          issuer: hRow.issuer ? findOff(hRow.issuer) : null,
           note: String(hRow.note || '').trim(),
           items: groupItems,
-          isValid: groupItems.length > 0 && groupItems.every(i => i.product && i.lot_number && i.qty > 0) && fromWhId && toWhId && hRow.dispenser
+          isValid: groupItems.length > 0 && groupItems.every(i => i.product && i.lot_number && i.qty > 0) && fromWhId && toWhId && hRow.issuer
         });
       }
 
@@ -235,12 +235,12 @@ export default function DispenseRelationalImportModal({ isOpen, onClose, onSucce
         const { data: movement, error: movError } = await supabase
           .from('stock_movements')
           .insert({
-            movement_type: 'DISPENSE',
+            movement_type: 'ISSUE',
             doc_no: group.doc_no,
             doc_date: group.doc_date,
             from_warehouse_id: group.from_warehouse_id,
             to_warehouse_id: group.to_warehouse_id,
-            actor_id: group.dispenser,
+            actor_id: group.issuer,
             note: group.note,
             created_by: user.id,
             created_by_position: creator?.position || null
@@ -388,7 +388,7 @@ export default function DispenseRelationalImportModal({ isOpen, onClose, onSucce
                           <p><span className="font-semibold text-gray-500">วันที่ตัดจ่าย:</span> <span className="font-bold text-gray-900">{g.doc_date}</span></p>
                           <p><span className="font-semibold text-gray-500">คลังต้นทาง:</span> <span className="font-bold text-gray-900">{g.from_warehouse_id ? warehouses.find(w => w.id === g.from_warehouse_id)?.name : <span className="text-red-500">ไม่ระบุ/ไม่พบ</span>}</span></p>
                           <p><span className="font-semibold text-gray-500">คลังปลายทาง:</span> <span className="font-bold text-gray-900">{g.to_warehouse_id ? warehouses.find(w => w.id === g.to_warehouse_id)?.name : <span className="text-red-500">ไม่ระบุ/ไม่พบ</span>}</span></p>
-                          <p><span className="font-semibold text-gray-500">ผู้จ่าย:</span> <span className="font-bold text-gray-900">{g.dispenser ? officers.find(o => o.id === g.dispenser)?.full_name : <span className="text-red-500">ไม่ระบุ/ไม่พบ</span>}</span></p>
+                          <p><span className="font-semibold text-gray-500">ผู้จ่าย:</span> <span className="font-bold text-gray-900">{g.issuer ? officers.find(o => o.id === g.issuer)?.full_name : <span className="text-red-500">ไม่ระบุ/ไม่พบ</span>}</span></p>
                           
                           {g.note && <p className="col-span-2 lg:col-span-4 mt-1"><span className="font-semibold text-gray-500">หมายเหตุ:</span> <span className="font-bold text-gray-900">{g.note}</span></p>}
                         </div>

@@ -33,7 +33,7 @@ export default function Dashboard() {
     totalActiveProducts: 0, 
     criticalAlerts: 0, 
     recentReceives: 0, 
-    recentDispenses: 0,
+    recentIssues: 0,
     recentDisposals: 0,
     totalInHandQty: 0,
     totalStockValue: 0,
@@ -165,15 +165,15 @@ export default function Dashboard() {
       if (endDate) queryReceive = queryReceive.lte('created_at', endDate);
       const { count: receiveCount } = await queryReceive;
 
-      // 4. ดึงยอดจ่ายออกตามช่วงเวลา (DISPENSE)
-      let queryDispense = supabase
+      // 4. ดึงยอดจ่ายออกตามช่วงเวลา (ISSUE)
+      let queryIssue = supabase
         .from('stock_movements')
         .select('*', { count: 'exact', head: true })
-        .eq('movement_type', 'DISPENSE')
+        .eq('movement_type', 'ISSUE')
         .eq('is_voided', false);
-      if (startDate) queryDispense = queryDispense.gte('created_at', startDate);
-      if (endDate) queryDispense = queryDispense.lte('created_at', endDate);
-      const { count: dispenseCount } = await queryDispense;
+      if (startDate) queryIssue = queryIssue.gte('created_at', startDate);
+      if (endDate) queryIssue = queryIssue.lte('created_at', endDate);
+      const { count: issueCount } = await queryIssue;
 
       // 5. ดึงยอดตัดจำหน่ายตามช่วงเวลา (DISPOSE)
       let queryDispose = supabase
@@ -356,23 +356,24 @@ export default function Dashboard() {
       }
       setLowStockAlerts(lowStocks);
 
-      // 13.2 Top Moving & Dead Stock based on selected period
-      let queryDispenseItems = supabase
-        .from('stock_movement_items')
-        .select(`product_id, qty, products(generic_name), stock_movements!inner(created_at, movement_type)`)
-        .eq('stock_movements.movement_type', 'DISPENSE');
-      if (startDate) queryDispenseItems = queryDispenseItems.gte('stock_movements.created_at', startDate);
-      if (endDate) queryDispenseItems = queryDispenseItems.lte('stock_movements.created_at', endDate);
-      const { data: recentDispenseItems } = await queryDispenseItems;
+      // 13.2 Top Moving & Dead Stock based on selected period (ใช้ RPC หลีกเลี่ยง 1000 records API limit)
+      const { data: activeProducts, error: rpcError } = await supabase
+        .rpc('get_active_product_ids', {
+          p_start_date: startDate || null,
+          p_end_date: endDate || null,
+          p_movement_type: 'ISSUE'
+        });
 
       const topMovingMap = new Map();
-      const activeDispenseInPeriod = new Set();
+      const activeIssueInPeriod = new Set();
 
-      if (recentDispenseItems) {
-        recentDispenseItems.forEach((item: any) => {
-          activeDispenseInPeriod.add(item.product_id);
-          const currentSum = topMovingMap.get(item.product_id) || { name: item.products?.generic_name, qty: 0 };
-          topMovingMap.set(item.product_id, { name: item.products?.generic_name, qty: currentSum.qty + (item.qty || 0) });
+      if (activeProducts) {
+        activeProducts.forEach((item: any) => {
+          activeIssueInPeriod.add(item.product_id);
+          topMovingMap.set(item.product_id, { 
+            name: item.generic_name, 
+            qty: Math.abs(Number(item.total_qty)) 
+          });
         });
       }
       const sortedTopMoving = Array.from(topMovingMap.values()).sort((a, b) => b.qty - a.qty).slice(0, 3);
@@ -382,7 +383,7 @@ export default function Dashboard() {
       if (allProducts) {
         allProducts.forEach((p: any) => {
            const totalQty = p.stock_balances?.reduce((sum: number, b: any) => sum + (b.current_qty || 0), 0) || 0;
-           if (totalQty > 0 && !activeDispenseInPeriod.has(p.id)) {
+           if (totalQty > 0 && !activeIssueInPeriod.has(p.id)) {
               deadStocks.push({ id: p.id, name: p.generic_name, qty: totalQty });
            }
         });
@@ -463,7 +464,7 @@ export default function Dashboard() {
         totalActiveProducts: activeProductsCount || 0,
         criticalAlerts: alertsCount || 0,
         recentReceives: receiveCount || 0,
-        recentDispenses: dispenseCount || 0,
+        recentIssues: issueCount || 0,
         recentDisposals: disposeCount || 0,
         totalInHandQty: qtySum,
         totalStockValue: valueSum,
@@ -747,10 +748,10 @@ export default function Dashboard() {
                     </span>
                   </div>
 
-                  {/* Dispense Monthly */}
+                  {/* Issue Monthly */}
                   <div className="bg-blue-50/40 hover:bg-blue-50 border border-blue-100 rounded-2xl p-4 flex flex-col justify-between transition-all duration-300 transform hover:-translate-y-1">
                     <span className="text-2xl font-black text-blue-600 block">
-                      {stats.recentDispenses}
+                      {stats.recentIssues}
                     </span>
                     <span className="text-[10px] text-blue-500 font-bold uppercase tracking-wider mt-1 block">ครั้ง</span>
                     <span className="text-xs text-blue-900/80 font-extrabold mt-3 flex items-center gap-1.5">
@@ -1397,9 +1398,9 @@ export default function Dashboard() {
                 </div>
               </Link>
 
-              {/* Action 2: Dispense */}
+              {/* Action 2: Issue */}
               <Link 
-                to="/dispense" 
+                to="/issue" 
                 className="group bg-white p-4 rounded-2xl border border-emerald-100 hover:border-emerald-400 hover:shadow-lg transition-all text-center flex flex-col items-center justify-center gap-3"
               >
                 <div className="w-11 h-11 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
@@ -1407,7 +1408,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <span className="font-extrabold text-emerald-950 text-xs block">จ่ายเวชภัณฑ์</span>
-                  <span className="text-[9px] text-emerald-800/50 font-bold uppercase mt-0.5 block">Dispense Stock</span>
+                  <span className="text-[9px] text-emerald-800/50 font-bold uppercase mt-0.5 block">Issue Stock</span>
                 </div>
               </Link>
 

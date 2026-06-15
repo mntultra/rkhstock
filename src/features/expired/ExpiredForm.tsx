@@ -4,6 +4,7 @@ import { StockBalance, ProductSearchResult } from '@/types';
 import { useWarehouses } from '@/hooks/useWarehouses';
 import { useOfficers } from '@/hooks/useOfficers';
 import ProductSearchInput from '@/components/ProductSearchInput';
+import { useLocation } from 'react-router-dom';
 import { 
   Pill, 
   Trash2, 
@@ -42,6 +43,8 @@ interface DisposalResultItem {
 }
 
 export default function ExpiredForm() {
+  const location = useLocation();
+  const preFillData = location.state as { productId?: string; lotNumber?: string } | null;
   const { warehouses, isLoading: isWarehousesLoading } = useWarehouses();
   const { officers } = useOfficers();
   const [warehouseId, setWarehouseId] = useState<string>(''); // คลังควบคุมจ่าย
@@ -72,6 +75,62 @@ export default function ExpiredForm() {
       setWarehouseId(warehouses[0].id);
     }
   }, [warehouses, warehouseId]);
+
+  // 1.1 จัดการโหลดข้อมูลเวชภัณฑ์ที่ถูกส่งมาจากศูนย์การแจ้งเตือน (Pre-fill)
+  useEffect(() => {
+    const loadPreFilledProduct = async () => {
+      if (preFillData?.productId && warehouseId) {
+        try {
+          // ดึงรายละเอียดตัวเวชภัณฑ์พร้อมหน่วยนับ
+          const { data: product, error } = await supabase
+            .from('products')
+            .select(`
+              *,
+              unit_id:unit_id(name:unit_name),
+              master_dosage_forms(name_en, abbreviation)
+            `)
+            .eq('id', preFillData.productId)
+            .maybeSingle();
+
+          if (error) throw error;
+          if (product) {
+            const stockData = await fetchProductStock(product.id, warehouseId);
+            const sumStock = stockData.reduce((sum, item) => sum + Number(item.current_qty), 0);
+
+            // ตรวจสอบล็อตเป้าหมาย
+            let targetLot = '';
+            if (preFillData.lotNumber) {
+              const lotExists = stockData.some(item => item.lot_number === preFillData.lotNumber);
+              if (lotExists) {
+                targetLot = preFillData.lotNumber;
+              } else if (stockData.length > 0) {
+                targetLot = stockData[0].lot_number;
+              }
+            } else if (stockData.length > 0) {
+              targetLot = stockData[0].lot_number;
+            }
+
+            setRows([
+              {
+                id: crypto.randomUUID(),
+                product: product as unknown as ProductSearchResult,
+                qty: '',
+                pack_size: product.pack_size || 1,
+                unit_name: product.unit_id?.name || '',
+                selected_lot: targetLot,
+                reason: 'EXPIRED',
+                totalStock: sumStock,
+                availableBalances: stockData
+              }
+            ]);
+          }
+        } catch (err) {
+          console.error('Failed to load prefilled product:', err);
+        }
+      }
+    };
+    loadPreFilledProduct();
+  }, [preFillData, warehouseId]);
 
   // เล่นเสียงบี๊บคู่ฉลองการจ่ายสำเร็จ (Confirm Beep) แบบไร้ไฟล์มีเดีย
   const playSuccessBeep = () => {
@@ -271,8 +330,8 @@ export default function ExpiredForm() {
     ]);
   };
 
-  // 8. สั่งบันทึกเอกสารตัดจ่ายแบบเรียงล็อตสุทธิ (Save Dispense Voucher Transaction)
-  const handleSaveDispense = async () => {
+  // 8. สั่งบันทึกเอกสารตัดจ่ายแบบเรียงล็อตสุทธิ (Save Issue Voucher Transaction)
+  const handleSaveIssue = async () => {
     // กรองเฉพาะบรรทัดที่กรอกข้อมูลเวชภัณฑ์สมบูรณ์
     const validRows = rows.filter(r => r.product && Number(r.qty) > 0);
 
@@ -583,7 +642,7 @@ export default function ExpiredForm() {
       <div className="flex justify-end pt-4">
         <Button
           type="button"
-          onClick={handleSaveDispense}
+          onClick={handleSaveIssue}
           disabled={isSubmitting || totalItemsCount === 0}
           icon={isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={20} />}
           size="lg"

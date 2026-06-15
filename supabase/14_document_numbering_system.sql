@@ -30,7 +30,7 @@ BEGIN
     ELSIF TG_TABLE_NAME = 'stock_movements' THEN
         IF NEW.movement_type = 'RECEIVE' THEN
             prefix := 'REC';
-        ELSIF NEW.movement_type = 'DISPENSE' THEN
+        ELSIF NEW.movement_type = 'ISSUE' THEN
             prefix := 'DIS';
         ELSE
             -- สำหรับความเคลื่อนไหวอื่น ๆ เช่น ADJUST หรือ RETURN

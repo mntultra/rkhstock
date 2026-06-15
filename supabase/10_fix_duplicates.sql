@@ -41,7 +41,7 @@ WITH movement_deltas AS (
       
     UNION ALL
     
-    -- ขาออก (DISPENSE, EXPIRED)
+    -- ขาออก (ISSUE, EXPIRED)
     SELECT 
         smi.product_id,
         sm.from_warehouse_id AS warehouse_id,
@@ -52,7 +52,7 @@ WITH movement_deltas AS (
     FROM public.stock_movement_items smi
     JOIN public.stock_movements sm ON smi.movement_id = sm.id
     WHERE COALESCE(sm.is_voided, false) = false 
-      AND sm.movement_type::text IN ('DISPENSE', 'EXPIRED')
+      AND sm.movement_type::text IN ('ISSUE', 'EXPIRED')
       
     UNION ALL
     

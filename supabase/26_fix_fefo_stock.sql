@@ -3,7 +3,7 @@
 -- และคำนวณยอดคงเหลือใหม่ (Recalculate stock_balances) 
 --
 -- ปัญหา:
--- ข้อมูลประวัติการจ่ายออก (DISPENSE) ในอดีตถูกบันทึกโดยหักยอดออกจากล็อตเดียวกันหมด
+-- ข้อมูลประวัติการจ่ายออก (ISSUE) ในอดีตถูกบันทึกโดยหักยอดออกจากล็อตเดียวกันหมด
 -- ทำให้ล็อตนั้นมียอดติดลบสะสม (เช่น -530) ขณะที่ล็อตอื่นๆ มีค่ายอดบวกค้างอยู่
 -- เมื่อระบบจัดเก็บเฉพาะยอดที่เป็นบวก (>0) จึงทำให้ข้อมูลสต๊อกในหน้าจอตัดจ่ายสูงกว่าความเป็นจริง
 -- และไม่ตรงกับหน้ารายงานบัญชีคุม (Stock Card)
@@ -41,8 +41,8 @@ BEGIN
         doc_date DATE
     ) ON COMMIT DROP;
     
-    -- 3. สร้างตารางชั่วคราวเก็บข้อมูลจ่ายออกคลัง (DISPENSE) เพื่อใช้ไล่หักยอดตามเวลา
-    CREATE TEMP TABLE temp_dispenses (
+    -- 3. สร้างตารางชั่วคราวเก็บข้อมูลจ่ายออกคลัง (ISSUE) เพื่อใช้ไล่หักยอดตามเวลา
+    CREATE TEMP TABLE temp_issues (
         id UUID,
         movement_id UUID,
         product_id UUID,
@@ -68,7 +68,7 @@ BEGIN
       AND COALESCE(sm.is_voided, false) = false;
 
     -- 5. ดึงข้อมูลประวัติการจ่ายออกทั้งหมด เรียงตามวันที่ทำรายการ
-    INSERT INTO temp_dispenses (id, movement_id, product_id, warehouse_id, qty, doc_date)
+    INSERT INTO temp_issues (id, movement_id, product_id, warehouse_id, qty, doc_date)
     SELECT 
         smi.id,
         smi.movement_id,
@@ -78,12 +78,12 @@ BEGIN
         sm.doc_date
     FROM public.stock_movement_items smi
     JOIN public.stock_movements sm ON smi.movement_id = sm.id
-    WHERE sm.movement_type = 'DISPENSE' 
+    WHERE sm.movement_type = 'ISSUE' 
       AND COALESCE(sm.is_voided, false) = false;
 
     -- 6. วนลูปประมวลผลจ่ายออกทีละรายการเพื่อจัดสรรล็อตตามหลัก FEFO
     FOR r_disp IN 
-        SELECT * FROM temp_dispenses ORDER BY doc_date ASC, id ASC
+        SELECT * FROM temp_issues ORDER BY doc_date ASC, id ASC
     LOOP
         v_needed := r_disp.qty;
         v_first := true;
@@ -188,7 +188,7 @@ FROM (
         
         UNION ALL
         
-        -- 8.2 ยอดหักจากการจ่ายออกจากคลัง (DISPENSE)
+        -- 8.2 ยอดหักจากการจ่ายออกจากคลัง (ISSUE)
         SELECT 
             smi.product_id,
             sm.from_warehouse_id AS warehouse_id,
@@ -196,7 +196,7 @@ FROM (
             -smi.qty AS net_qty
         FROM public.stock_movement_items smi
         JOIN public.stock_movements sm ON smi.movement_id = sm.id
-        WHERE sm.movement_type = 'DISPENSE' 
+        WHERE sm.movement_type = 'ISSUE' 
           AND COALESCE(sm.is_voided, false) = false
     ) AS movements
     GROUP BY product_id, warehouse_id, lot_id

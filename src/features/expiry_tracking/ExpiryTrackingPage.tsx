@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { ShieldAlert, AlertTriangle, Clock, Search, Filter, Plus, Calendar, X, CheckCircle, Printer, FileSpreadsheet, Pill, Trash } from 'lucide-react';
+import { ShieldAlert, AlertTriangle, Clock, Search, Filter, Plus, Calendar, X, CheckCircle, Printer, FileSpreadsheet, Pill, Trash, Edit2 } from 'lucide-react';
 import AddManualExpiryModal from './AddManualExpiryModal';
 import { formatDate } from '@/utils/dateUtils';
 import { useWarehouses } from '@/hooks/useWarehouses';
@@ -39,6 +39,7 @@ interface DisposalItem {
   unit_price: number;
   lot_number: string;
   warehouse_name: string;
+  source: 'SYSTEM' | 'MANUAL';
 }
 
 interface DeadStockItem {
@@ -71,6 +72,7 @@ export default function ExpiryTrackingPage() {
   // Disposal Log state
   const [disposalItems, setDisposalItems] = useState<DisposalItem[]>([]);
   const [isDisposalLoading, setIsDisposalLoading] = useState(false);
+  const [disposalSourceFilter, setDisposalSourceFilter] = useState<'ALL' | 'SYSTEM' | 'MANUAL'>('ALL');
 
   // Dead Stock state
   const [deadStockItems, setDeadStockItems] = useState<DeadStockItem[]>([]);
@@ -82,6 +84,7 @@ export default function ExpiryTrackingPage() {
   const [destroyQty, setDestroyQty] = useState<number>(0);
   const [destroyReason, setDestroyReason] = useState<string>('EXPIRED');
   const [isDestroySubmitting, setIsDestroySubmitting] = useState(false);
+  const [editingItem, setEditingItem] = useState<ExpiryItem | null>(null);
 
   const location = useLocation();
 
@@ -212,9 +215,9 @@ export default function ExpiryTrackingPage() {
           created_at,
           products ( generic_name, drug_code, unit_price ),
           lots ( lot_number, unit_price ),
-          stock_movements!inner ( movement_type, from_warehouse_id, master_warehouses:from_warehouse_id(name) )
+          stock_movements!inner ( movement_type, from_warehouse_id, note )
         `)
-        .in('stock_movements.movement_type', ['DISPOSE', 'EXPIRED'])
+        .eq('stock_movements.movement_type', 'DISPOSE')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -222,7 +225,7 @@ export default function ExpiryTrackingPage() {
       const processed = (data || []).map((item: any) => {
         const qtyVal = Math.abs(item.qty || 0);
         const price = item.lots?.unit_price || item.products?.unit_price || 0;
-        const warehouseName = item.stock_movements?.master_warehouses?.name || 'ไม่ระบุคลัง';
+        const warehouseName = warehouses.find(w => w.id === item.stock_movements?.from_warehouse_id)?.name || 'ไม่ระบุคลัง';
 
         return {
           id: item.id,
@@ -233,7 +236,8 @@ export default function ExpiryTrackingPage() {
           drug_code: item.products?.drug_code,
           unit_price: price,
           lot_number: item.lots?.lot_number || '-',
-          warehouse_name: warehouseName
+          warehouse_name: warehouseName,
+          source: item.stock_movements?.note || 'SYSTEM'
         };
       });
       setDisposalItems(processed);
@@ -269,7 +273,7 @@ export default function ExpiryTrackingPage() {
           product_id,
           stock_movements!inner ( movement_type, created_at )
         `)
-        .eq('stock_movements.movement_type', 'DISPENSE')
+        .eq('stock_movements.movement_type', 'ISSUE')
         .gte('stock_movements.created_at', thresholdDate.toISOString());
 
       if (moveError) throw moveError;
@@ -354,11 +358,22 @@ export default function ExpiryTrackingPage() {
         if (statusFilter === 'WARNING_6' && (item.days_remaining <= 0 || item.days_remaining > 180)) return false;
         if (statusFilter === 'WARNING_12' && (item.days_remaining < 270 || item.days_remaining > 360)) return false;
         if (statusFilter === 'SAFE' && item.days_remaining <= 180) return false;
+      } else {
+        // Exclude DESTROYED items from ALL active status list by default
+        if (item.status === 'DESTROYED') return false;
       }
 
       return true;
     });
   }, [items, search, sourceFilter, statusFilter]);
+
+  // Filtering Disposals
+  const filteredDisposals = useMemo(() => {
+    return disposalItems.filter(item => {
+      if (disposalSourceFilter !== 'ALL' && item.source !== disposalSourceFilter) return false;
+      return true;
+    });
+  }, [disposalItems, disposalSourceFilter]);
 
   const stats = useMemo(() => {
     let total = 0;
@@ -470,8 +485,9 @@ export default function ExpiryTrackingPage() {
       }));
     } else if (activeTab === 'DISPOSAL') {
       fileName = `RKH_Disposal_Loss_Report_${new Date().toISOString().split('T')[0]}`;
-      data = disposalItems.map(item => ({
+      data = filteredDisposals.map(item => ({
         'วันที่ทำลาย': new Date(item.created_at).toLocaleDateString('th-TH'),
+        'แหล่งข้อมูล': item.source === 'SYSTEM' ? 'คลังเวชภัณฑ์ (In-Stock)' : 'ชั้นจุดจ่าย (Manual Tracking)',
         'คลังสินค้า': item.warehouse_name,
         'เวชภัณฑ์': item.product_name,
         'รหัสเวชภัณฑ์': item.drug_code || '',
@@ -571,7 +587,8 @@ export default function ExpiryTrackingPage() {
           movement_type: 'DISPOSE',
           from_warehouse_id: destroyingItem.warehouse_id || null,
           created_by: userId,
-          created_by_position: null
+          created_by_position: null,
+          note: destroyingItem.source
         })
         .select('id')
         .single();
@@ -582,19 +599,30 @@ export default function ExpiryTrackingPage() {
       const unitPrice = destroyingItem.unit_price || 0;
       const packSize = destroyingItem.pack_size || 1;
 
+      // Resolve lot_id if missing (e.g. for MANUAL source items)
+      let lotId = destroyingItem.lot_id || null;
+      if (!lotId && destroyingItem.product_id) {
+        const { data: createdLotId, error: lotError } = await supabase.rpc('find_or_create_lot', {
+          p_product_id: destroyingItem.product_id,
+          p_lot_number: destroyingItem.lot_number || '-',
+          p_expiry_date: destroyingItem.expiry_date || null,
+          p_unit_price: unitPrice
+        });
+        if (lotError) throw lotError;
+        lotId = createdLotId;
+      }
+
       // 2. Insert transaction item into stock_movement_items
       const { error: itemError } = await supabase
         .from('stock_movement_items')
         .insert({
           movement_id: movement.id,
           product_id: destroyingItem.product_id,
-          lot_id: destroyingItem.lot_id || null,
+          lot_id: lotId,
           qty: -Number(destroyQty),
           pack_size: packSize,
           unit_name: destroyingItem.unit_name || 'ชิ้น',
           remark: destroyReason,
-          lot_number: destroyingItem.lot_number,
-          expiry_date: destroyingItem.expiry_date,
           unit_price: unitPrice
         });
 
@@ -1113,20 +1141,31 @@ export default function ExpiryTrackingPage() {
                               {item.status !== 'DESTROYED' && item.qty !== null && item.qty > 0 && (
                                 <button
                                   onClick={() => openDestroyModal(item)}
-                                  className="p-2 text-gray-400 hover:text-red-650 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                                  className="p-2 text-gray-400 hover:text-red-655 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
                                   title="ทำลายเวชภัณฑ์จริง (Dispose)"
                                 >
                                   <Trash size={18} strokeWidth={2.5} />
                                 </button>
                               )}
                               {item.source === 'MANUAL' ? (
-                                <button
-                                  onClick={() => handleManualDelete(item.id)}
-                                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                                  title="ลบรายการติดตามยานี้"
-                                >
-                                  <X size={18} strokeWidth={2.5} />
-                                </button>
+                                <>
+                                  {item.status !== 'DESTROYED' && (
+                                    <button
+                                      onClick={() => setEditingItem(item)}
+                                      className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors cursor-pointer"
+                                      title="แก้ไขรายละเอียดรายการนี้"
+                                    >
+                                      <Edit2 size={18} strokeWidth={2.5} />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleManualDelete(item.id)}
+                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                                    title="ลบรายการติดตามยานี้"
+                                  >
+                                    <X size={18} strokeWidth={2.5} />
+                                  </button>
+                                </>
                               ) : (
                                 <span className="text-[10px] text-gray-400 font-bold block" title="ไม่สามารถลบจากหน้านี้ได้ ต้องทำเรื่องตัดจ่ายยา">ระบบ</span>
                               )}
@@ -1146,40 +1185,89 @@ export default function ExpiryTrackingPage() {
       {/* TAB 2: DISPOSAL & LOSS REPORT */}
       {activeTab === 'DISPOSAL' && (
         <div className="space-y-6">
+          {/* Disposal Filter Bar */}
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center justify-between print:hidden animate-fade-in-up">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-gray-500">กรองตามแหล่งข้อมูล:</span>
+              <select
+                value={disposalSourceFilter}
+                onChange={(e) => setDisposalSourceFilter(e.target.value as any)}
+                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-red-400 text-sm font-bold text-gray-700 cursor-pointer shadow-sm"
+              >
+                <option value="ALL">แหล่งข้อมูลทั้งหมด (In-Stock & Manual)</option>
+                <option value="SYSTEM">เฉพาะในคลังเวชภัณฑ์ (In-Stock)</option>
+                <option value="MANUAL">เฉพาะบนชั้นจุดจ่าย (Manual Tracking)</option>
+              </select>
+            </div>
+          </div>
+
           {/* Disposal Overview Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 print:hidden">
             {/* Total Loss Value */}
             <div className="bg-gradient-to-br from-red-655 to-red-800 text-white rounded-3xl p-6 shadow-md flex flex-col justify-between">
-              <span className="text-[10px] text-red-100 font-extrabold uppercase tracking-wider">มูลค่าความสูญเสียรวม</span>
-              <span className="text-3xl font-black mt-2">
-                ฿{disposalItems.reduce((sum, item) => sum + (item.qty * item.unit_price), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </span>
-              <span className="text-xs text-red-100/80 font-medium mt-4 font-black">คำนวณจากราคาซื้อประเมินเวชภัณฑ์</span>
+              <div>
+                <span className="text-[10px] text-red-100 font-extrabold uppercase tracking-wider">มูลค่าความสูญเสียรวม</span>
+                <span className="text-3xl font-black mt-2 block">
+                  ฿{filteredDisposals.reduce((sum, item) => sum + (item.qty * item.unit_price), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="text-[10px] text-red-100/90 font-bold mt-4 pt-2 border-t border-white/10 space-y-1">
+                <div className="flex justify-between">
+                  <span>ในคลัง (In-Stock):</span>
+                  <span>฿{disposalItems.filter(i => i.source === 'SYSTEM').reduce((sum, item) => sum + (item.qty * item.unit_price), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>ชั้นจ่าย (Manual):</span>
+                  <span>฿{disposalItems.filter(i => i.source === 'MANUAL').reduce((sum, item) => sum + (item.qty * item.unit_price), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
             </div>
 
             {/* Total Disposed Lines */}
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">จำนวนรายการที่ทำลาย</span>
-              <span className="text-3xl font-black text-gray-900 mt-2">{disposalItems.length}</span>
-              <span className="text-xs text-gray-400 font-medium mt-4 font-bold">รายการแยกตามล็อต</span>
+              <div>
+                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">จำนวนรายการที่ทำลาย</span>
+                <span className="text-3xl font-black text-gray-900 mt-2 block">{filteredDisposals.length}</span>
+              </div>
+              <div className="text-[10px] text-gray-505 font-bold mt-4 pt-2 border-t border-gray-100 space-y-1">
+                <div className="flex justify-between">
+                  <span>ในคลัง (In-Stock):</span>
+                  <span className="text-gray-700">{disposalItems.filter(i => i.source === 'SYSTEM').length} รายการ</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>ชั้นจ่าย (Manual):</span>
+                  <span className="text-gray-700">{disposalItems.filter(i => i.source === 'MANUAL').length} รายการ</span>
+                </div>
+              </div>
             </div>
 
             {/* Total Quantity */}
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">ปริมาณเวชภัณฑ์ที่ทำลายสะสม</span>
-              <span className="text-3xl font-black text-gray-900 mt-2">
-                {disposalItems.reduce((sum, item) => sum + item.qty, 0).toLocaleString()}
-              </span>
-              <span className="text-xs text-gray-400 font-medium mt-4 font-bold">หน่วยนับตามชิ้น/หน่วยย่อย</span>
+              <div>
+                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">ปริมาณเวชภัณฑ์ที่ทำลายสะสม</span>
+                <span className="text-3xl font-black text-gray-900 mt-2 block">
+                  {filteredDisposals.reduce((sum, item) => sum + item.qty, 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="text-[10px] text-gray-505 font-bold mt-4 pt-2 border-t border-gray-100 space-y-1">
+                <div className="flex justify-between">
+                  <span>ในคลัง (In-Stock):</span>
+                  <span className="text-gray-700">{disposalItems.filter(i => i.source === 'SYSTEM').reduce((sum, item) => sum + item.qty, 0).toLocaleString()} ชิ้น</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>ชั้นจ่าย (Manual):</span>
+                  <span className="text-gray-700">{disposalItems.filter(i => i.source === 'MANUAL').reduce((sum, item) => sum + item.qty, 0).toLocaleString()} ชิ้น</span>
+                </div>
+              </div>
             </div>
 
             {/* Expired vs Others */}
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">สาเหตุการจำหน่าย</span>
+              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">สาเหตุการจำหน่าย (ทั้งหมด)</span>
               <div className="mt-2 space-y-1 text-xs font-bold text-gray-700">
                 <div className="flex justify-between">
                   <span>หมดอายุ (EXPIRED):</span>
-                  <span className="text-red-650">{disposalItems.filter(i => i.remark === 'EXPIRED').length} ล็อต</span>
+                  <span className="text-red-655">{disposalItems.filter(i => i.remark === 'EXPIRED').length} ล็อต</span>
                 </div>
                 <div className="flex justify-between">
                   <span>เสื่อมสภาพ (DAMAGED):</span>
@@ -1200,6 +1288,7 @@ export default function ExpiryTrackingPage() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100 text-xs font-black text-gray-500 uppercase tracking-wider">
                     <th className="px-6 py-4">วันที่ทำลาย</th>
+                    <th className="px-6 py-4 text-center">แหล่งข้อมูล</th>
                     <th className="px-6 py-4">คลังที่ทำลาย</th>
                     <th className="px-6 py-4">เวชภัณฑ์</th>
                     <th className="px-6 py-4 text-center">เลขล็อต</th>
@@ -1212,19 +1301,19 @@ export default function ExpiryTrackingPage() {
                 <tbody className="divide-y divide-gray-50 text-sm">
                   {isDisposalLoading ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-12 text-center">
+                      <td colSpan={9} className="px-6 py-12 text-center">
                         <div className="w-8 h-8 border-4 border-red-500/20 border-t-red-600 rounded-full animate-spin mx-auto mb-3" />
                         <p className="text-gray-500 font-bold">กำลังโหลดประวัติการทำลายยา...</p>
                       </td>
                     </tr>
-                  ) : disposalItems.length === 0 ? (
+                  ) : filteredDisposals.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-16 text-center text-gray-400">
+                      <td colSpan={9} className="px-6 py-16 text-center text-gray-400">
                         ไม่พบประวัติการตัดทำลายเวชภัณฑ์ในประวัติระบบ
                       </td>
                     </tr>
                   ) : (
-                    disposalItems.map(item => (
+                    filteredDisposals.map(item => (
                       <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
                         <td className="px-6 py-4 font-mono font-medium text-gray-600">
                           {new Date(item.created_at).toLocaleDateString('th-TH', { 
@@ -1234,6 +1323,15 @@ export default function ExpiryTrackingPage() {
                             hour: '2-digit', 
                             minute: '2-digit' 
                           })}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${
+                            item.source === 'SYSTEM'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-purple-50 text-purple-700 border-purple-200'
+                          }`}>
+                            {item.source === 'SYSTEM' ? 'In-Stock' : 'Manual'}
+                          </span>
                         </td>
                         <td className="px-6 py-4 font-bold text-gray-700">{item.warehouse_name}</td>
                         <td className="px-6 py-4">
@@ -1366,11 +1464,16 @@ export default function ExpiryTrackingPage() {
         </div>
       )}
 
-      {isModalOpen && (
+      {(isModalOpen || editingItem) && (
         <AddManualExpiryModal
-          onClose={() => setIsModalOpen(false)}
+          itemToEdit={editingItem || undefined}
+          onClose={() => {
+            setIsModalOpen(false);
+            setEditingItem(null);
+          }}
           onSuccess={() => {
             setIsModalOpen(false);
+            setEditingItem(null);
             fetchData();
           }}
         />
@@ -1378,9 +1481,9 @@ export default function ExpiryTrackingPage() {
 
       {destroyingItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up my-auto">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up my-auto max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="bg-gradient-to-r from-red-600 to-rose-600 px-6 py-4 flex justify-between items-center text-white">
+            <div className="bg-gradient-to-r from-red-600 to-rose-600 px-6 py-4 flex justify-between items-center text-white shrink-0">
               <div>
                 <h2 className="text-lg font-extrabold flex items-center gap-2">
                   <Trash size={20} />
@@ -1398,7 +1501,7 @@ export default function ExpiryTrackingPage() {
             </div>
 
             {/* Body */}
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <span className="text-xs text-gray-400 font-bold block">ชื่อเวชภัณฑ์</span>
                 <span className="font-extrabold text-gray-900 text-base">{destroyingItem.generic_name}</span>
@@ -1462,7 +1565,7 @@ export default function ExpiryTrackingPage() {
             </div>
 
             {/* Footer */}
-            <div className="bg-gray-50 px-6 py-4 flex gap-3 justify-end">
+            <div className="bg-gray-50 px-6 py-4 flex gap-3 justify-end shrink-0">
               <button
                 type="button"
                 onClick={() => setDestroyingItem(null)}

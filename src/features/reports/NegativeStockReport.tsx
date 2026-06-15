@@ -150,7 +150,7 @@ export default function NegativeStockReport() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[calc(100vh-8rem)]">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col mb-8">
       {/* สไตล์ชีตครอบคลุมการจัดรูปแบบเวลาสั่งพิมพ์รายงาน PDF */}
       <style>{`
         @media print {
@@ -244,7 +244,7 @@ export default function NegativeStockReport() {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-x-auto md:overflow-visible">
         <table className="w-full text-left border-collapse">
           <thead className="bg-white sticky top-0 shadow-sm z-10">
             <tr>

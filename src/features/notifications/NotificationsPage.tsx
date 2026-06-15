@@ -1,10 +1,12 @@
 import { formatDate } from '@/utils/dateUtils';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { AlertTriangle, Clock, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Clock, ShieldAlert, CheckCircle2, Trash } from 'lucide-react';
 import { NotificationAlert } from '@/types';
+import { useNavigate } from 'react-router-dom';
 
 export default function NotificationsPage() {
+  const navigate = useNavigate();
   const [alerts, setAlerts] = useState<NotificationAlert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -99,6 +101,20 @@ export default function NotificationsPage() {
                     <p>วันหมดอายุ: <span className="font-bold text-gray-900">{alert.expiry_date ? formatDate(alert.expiry_date) : '-'}</span></p>
                   </div>
                 </div>
+
+                {/* ปุ่มลัดตัดจำหน่ายเวชภัณฑ์ (สำหรับรายการแจ้งเตือนใกล้หมดอายุ/หมดอายุแล้ว) */}
+                {(alert.alert_level === 'CRITICAL' || alert.alert_level === 'WARNING') && (
+                  <div className="shrink-0 w-full sm:w-auto mt-3 sm:mt-0">
+                    <button
+                      onClick={() => navigate('/expired', { state: { productId: alert.product_id, lotNumber: alert.lot_number } })}
+                      className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 w-full sm:w-auto"
+                      title="ตัดจำหน่ายเวชภัณฑ์ล็อตนี้"
+                    >
+                      <Trash size={14} className="shrink-0" />
+                      <span>ตัดจำหน่าย (Dispose)</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })

@@ -84,7 +84,7 @@ export function useReceiveForm() {
   const [warehouseId, setWarehouseId] = useState<string>('');           // รับเข้าคลัง (คลังย่อย)
   const [actorId, setActorId] = useState('');                           // ผู้รับเวชภัณฑ์
   const [approverMainId, setApproverMainId] = useState('');             // ผู้อนุมัติจ่าย (คลังหลัก)
-  const [dispenserMainId, setDispenserMainId] = useState('');           // ผู้จ่ายเวชภัณฑ์ (คลังหลัก)
+  const [issuerMainId, setIssuerMainId] = useState('');           // ผู้จ่ายเวชภัณฑ์ (คลังหลัก)
   const [headerNote, setHeaderNote] = useState('');                     // หมายเหตุ
   const [refDocNo, setRefDocNo] = useState('');
   const [refDocDate, setRefDocDate] = useState('');
@@ -139,10 +139,10 @@ export function useReceiveForm() {
         if (!data) return;
         const find = (key: string) => data.find((o: any) => o.role_key === key)?.user_id || '';
         const app  = find('approver_main_warehouse');
-        const disp = find('dispenser_main_warehouse');
+        const disp = find('issuer_main_warehouse');
         const recv = find('receiver'); // 'receiver' = ผู้รับเวชภัณฑ์ (กำหนดในตั้งค่า → เจ้าหน้าที่คลังย่อย)
         if (app)  setApproverMainId(app);
-        if (disp) setDispenserMainId(disp);
+        if (disp) setIssuerMainId(disp);
         if (recv) setActorId(recv);
       } catch (e) { console.error(e); }
     };
@@ -680,7 +680,7 @@ export function useReceiveForm() {
           to_warehouse_id: warehouseId,
           receiver: actorId,
           approver_main_warehouse: approverMainId || null,
-          dispenser_main_warehouse: dispenserMainId || null,
+          issuer_main_warehouse: issuerMainId || null,
           note: headerNote || null,
           requisition_id: selectedRequisitionId || null,
           created_by: user.id,
@@ -792,7 +792,7 @@ export function useReceiveForm() {
     warehouseId, setWarehouseId,
     actorId, setActorId,
     approverMainId, setApproverMainId,
-    dispenserMainId, setDispenserMainId,
+    issuerMainId, setIssuerMainId,
     headerNote, setHeaderNote,
     refDocNo, setRefDocNo,
     refDocDate, setRefDocDate,

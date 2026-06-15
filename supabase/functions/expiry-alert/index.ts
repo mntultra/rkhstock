@@ -71,7 +71,17 @@ serve(async (req: Request) => {
       }
     }
 
-    // 4. INSERT ลงตาราง Notifications
+    // 4. ล้างข้อมูลการแจ้งเตือนเก่าเพื่อป้องกันข้อมูลซ้ำซ้อนรายวัน
+    const { error: deleteError } = await supabase
+      .from("notifications")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+
+    if (deleteError) {
+      console.error("Error clearing old notifications:", deleteError);
+    }
+
+    // INSERT ลงตาราง Notifications
     if (notificationsToInsert.length > 0) {
       const { error: insertError } = await supabase
         .from("notifications")

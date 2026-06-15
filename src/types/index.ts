@@ -78,6 +78,7 @@ export interface NotificationAlert {
   days_remaining?: number;
   lot_number?: string;
   expiry_date?: string;
+  product_id?: string;
   products?: any;
 }
 

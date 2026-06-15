@@ -61,7 +61,7 @@ BEGIN
               AND warehouse_id = v_to_warehouse_id
               AND lot_id = item.lot_id;
               
-        ELSIF v_movement_type IN ('DISPENSE', 'DISPOSE') THEN
+        ELSIF v_movement_type IN ('ISSUE', 'DISPOSE') THEN
             -- การ Void ใบจ่าย/ใบทำลาย: ต้องบวกสต๊อกคืน
             IF EXISTS (
                 SELECT 1 FROM stock_balances 

@@ -9,7 +9,7 @@
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'stock_audit_action') THEN
-        CREATE TYPE stock_audit_action AS ENUM ('RECEIVE', 'DISPENSE', 'VOID', 'ADJUST', 'CORRECTION');
+        CREATE TYPE stock_audit_action AS ENUM ('RECEIVE', 'ISSUE', 'VOID', 'ADJUST', 'CORRECTION');
     END IF;
 END
 $$;
@@ -123,7 +123,7 @@ BEGIN
         IF (v_movement_id IS NULL) THEN
             SELECT smi.movement_id, 
                    (CASE WHEN sm.movement_type = 'RECEIVE' THEN 'RECEIVE'::stock_audit_action 
-                         WHEN sm.movement_type = 'DISPENSE' THEN 'DISPENSE'::stock_audit_action
+                         WHEN sm.movement_type = 'ISSUE' THEN 'ISSUE'::stock_audit_action
                          ELSE 'ADJUST'::stock_audit_action 
                     END),
                    COALESCE(auth.uid(), sm.created_by)

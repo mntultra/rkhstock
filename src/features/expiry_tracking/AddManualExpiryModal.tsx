@@ -4,23 +4,35 @@ import { ProductSearchResult } from '@/types';
 import { X, Save, AlertCircle, RefreshCw } from 'lucide-react';
 import ProductSearchInput from '@/components/ProductSearchInput';
 import { useWarehouses } from '@/hooks/useWarehouses';
+import { DatePicker } from '@/components/ui/DatePicker';
 
 interface AddManualExpiryModalProps {
   onClose: () => void;
   onSuccess: () => void;
+  itemToEdit?: any;
 }
 
-export default function AddManualExpiryModal({ onClose, onSuccess }: AddManualExpiryModalProps) {
+export default function AddManualExpiryModal({ onClose, onSuccess, itemToEdit }: AddManualExpiryModalProps) {
   const { warehouses } = useWarehouses();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [selectedProduct, setSelectedProduct] = useState<ProductSearchResult | null>(null);
-  const [warehouseId, setWarehouseId] = useState<string>('');
-  const [lotNumber, setLotNumber] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [qty, setQty] = useState<number | ''>('');
-  const [manufacturer, setManufacturer] = useState('');
-  const [remark, setRemark] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<ProductSearchResult | null>(
+    itemToEdit
+      ? {
+          id: itemToEdit.product_id || '',
+          generic_name: itemToEdit.generic_name || '',
+          trade_name: itemToEdit.trade_name || null,
+          drug_code: itemToEdit.drug_code || null,
+          unit_price: itemToEdit.unit_price || 0,
+        }
+      : null
+  );
+  const [warehouseId, setWarehouseId] = useState<string>(itemToEdit?.warehouse_id || '');
+  const [lotNumber, setLotNumber] = useState(itemToEdit?.lot_number && itemToEdit.lot_number !== '-' ? itemToEdit.lot_number : '');
+  const [expiryDate, setExpiryDate] = useState(itemToEdit?.expiry_date ? itemToEdit.expiry_date.split('T')[0] : '');
+  const [qty, setQty] = useState<number | ''>(itemToEdit?.qty !== null && itemToEdit?.qty !== undefined ? itemToEdit.qty : '');
+  const [manufacturer, setManufacturer] = useState(itemToEdit?.manufacturer || '');
+  const [remark, setRemark] = useState(itemToEdit?.remark || '');
 
   const [suggestedLots, setSuggestedLots] = useState<any[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
@@ -35,7 +47,7 @@ export default function AddManualExpiryModal({ onClose, onSuccess }: AddManualEx
   // Load suggested lots when a product is selected
   useEffect(() => {
     const fetchLotSuggestions = async () => {
-      if (!selectedProduct) {
+      if (!selectedProduct || itemToEdit) {
         setSuggestedLots([]);
         return;
       }
@@ -57,7 +69,7 @@ export default function AddManualExpiryModal({ onClose, onSuccess }: AddManualEx
     };
 
     fetchLotSuggestions();
-  }, [selectedProduct]);
+  }, [selectedProduct, itemToEdit]);
 
   const handleSelectSuggestion = (lot: any) => {
     setLotNumber(lot.lot_number);
@@ -83,18 +95,36 @@ export default function AddManualExpiryModal({ onClose, onSuccess }: AddManualEx
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
 
-      const { error } = await supabase.from('manual_expirations').insert([{
+      const recordData = {
         product_id: selectedProduct.id,
         lot_number: lotNumber || null,
         expiry_date: expiryDate,
         qty: qty === '' ? null : Number(qty),
-        warehouse_id: warehouseId,
+        warehouse_id: warehouseId || null,
         manufacturer: manufacturer || null,
         remark: remark || null,
-        created_by: userId
-      }]);
+      };
 
-      if (error) throw error;
+      if (itemToEdit) {
+        // Edit mode
+        const realId = itemToEdit.id.replace('man_', '');
+        const { error } = await supabase
+          .from('manual_expirations')
+          .update(recordData)
+          .eq('id', realId);
+
+        if (error) throw error;
+      } else {
+        // Add mode
+        const { error } = await supabase
+          .from('manual_expirations')
+          .insert([{
+            ...recordData,
+            created_by: userId
+          }]);
+
+        if (error) throw error;
+      }
       
       onSuccess();
     } catch (err: any) {
@@ -113,9 +143,11 @@ export default function AddManualExpiryModal({ onClose, onSuccess }: AddManualEx
           <div>
             <h2 className="text-xl font-extrabold flex items-center gap-2">
               <AlertCircle size={22} />
-              เพิ่มรายการยาติดตามวันหมดอายุ
+              {itemToEdit ? 'แก้ไขรายการยาติดตามวันหมดอายุ' : 'เพิ่มรายการยาติดตามวันหมดอายุ'}
             </h2>
-            <p className="text-emerald-100 text-sm mt-1">เพิ่มรายการเวชภัณฑ์ที่เบิกไปแล้ว เพื่อติดตามวันหมดอายุ</p>
+            <p className="text-emerald-100 text-sm mt-1">
+              {itemToEdit ? 'แก้ไขรายละเอียดเวชภัณฑ์ที่บันทึกเพื่อติดตามวันหมดอายุ' : 'เพิ่มรายการเวชภัณฑ์ที่เบิกไปแล้ว เพื่อติดตามวันหมดอายุ'}
+            </p>
           </div>
           <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors">
             <X size={20} />
@@ -143,17 +175,19 @@ export default function AddManualExpiryModal({ onClose, onSuccess }: AddManualEx
                       รหัส: {selectedProduct.drug_code || '-'} {selectedProduct.trade_name && `• ${selectedProduct.trade_name}`}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedProduct(null);
-                      setLotNumber('');
-                      setExpiryDate('');
-                    }}
-                    className="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-full"
-                  >
-                    <X size={16} />
-                  </button>
+                  {!itemToEdit && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedProduct(null);
+                        setLotNumber('');
+                        setExpiryDate('');
+                      }}
+                      className="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-full"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -174,7 +208,7 @@ export default function AddManualExpiryModal({ onClose, onSuccess }: AddManualEx
             </div>
 
             {/* Suggestions */}
-            {selectedProduct && (
+            {selectedProduct && !itemToEdit && (
               <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <RefreshCw size={16} className={`text-blue-500 ${isLoadingSuggestions ? 'animate-spin' : ''}`} />
@@ -218,11 +252,10 @@ export default function AddManualExpiryModal({ onClose, onSuccess }: AddManualEx
               {/* Expiry Date */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">วันหมดอายุ <span className="text-red-500">*</span></label>
-                <input
-                  type="date"
-                  required
+                <DatePicker
                   value={expiryDate}
-                  onChange={e => setExpiryDate(e.target.value)}
+                  onChange={setExpiryDate}
+                  required
                   className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 font-bold"
                 />
               </div>

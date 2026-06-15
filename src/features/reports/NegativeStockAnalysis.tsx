@@ -32,7 +32,7 @@ interface MovementItem {
 interface AnalysisResult {
   item: NegItem;
   cause: string;
-  causeCode: 'CROSS_LOT' | 'OVER_DISPENSE' | 'IMPORT_ERROR' | 'MANUAL_ADJUST' | 'UNKNOWN';
+  causeCode: 'CROSS_LOT' | 'OVER_ISSUE' | 'IMPORT_ERROR' | 'MANUAL_ADJUST' | 'UNKNOWN';
   detail: string;
   fix: string;
   movements: MovementItem[];
@@ -41,7 +41,7 @@ interface AnalysisResult {
 
 const CAUSE_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   CROSS_LOT:      { label: 'ตัดต่าง Lot', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200', icon: <ArrowRightLeft size={16} /> },
-  OVER_DISPENSE:  { label: 'จ่ายเกินสต็อก', color: 'text-red-700',    bg: 'bg-red-50 border-red-200',       icon: <AlertTriangle size={16} /> },
+  OVER_ISSUE:  { label: 'จ่ายเกินสต็อก', color: 'text-red-700',    bg: 'bg-red-50 border-red-200',       icon: <AlertTriangle size={16} /> },
   IMPORT_ERROR:   { label: 'นำเข้าข้อมูลผิด', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200', icon: <FileX size={16} /> },
   MANUAL_ADJUST:  { label: 'ปรับมือ (Manual)', color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200',     icon: <Wrench size={16} /> },
   UNKNOWN:        { label: 'ไม่ทราบสาเหตุ',  color: 'text-gray-700',   bg: 'bg-gray-50 border-gray-200',     icon: <FlaskConical size={16} /> },
@@ -49,30 +49,30 @@ const CAUSE_META: Record<string, { label: string; color: string; bg: string; ico
 
 function detectCause(movements: MovementItem[], item: NegItem): Pick<AnalysisResult, 'cause' | 'causeCode' | 'detail' | 'fix'> {
   const receives = movements.filter(m => m.movement_type === 'RECEIVE');
-  const dispenses = movements.filter(m => m.movement_type === 'DISPENSE');
+  const issues = movements.filter(m => m.movement_type === 'ISSUE');
   const adjusts  = movements.filter(m => m.movement_type === 'ADJUST');
 
-  // Case 1: มีการ DISPENSE โดยไม่มี RECEIVE ใน lot เดียวกัน → ตัดผิด lot
+  // Case 1: มีการ ISSUE โดยไม่มี RECEIVE ใน lot เดียวกัน → ตัดผิด lot
   const hasReceiveForLot = receives.some(r => r.lot_number === item.lot_number);
-  const hasDispenseForLot = dispenses.some(d => d.lot_number === item.lot_number);
-  if (hasDispenseForLot && !hasReceiveForLot) {
+  const hasIssueForLot = issues.some(d => d.lot_number === item.lot_number);
+  if (hasIssueForLot && !hasReceiveForLot) {
     const otherLots = [...new Set(receives.map(r => r.lot_number))].join(', ');
     return {
       causeCode: 'CROSS_LOT',
       cause: 'ตัดจ่ายผิด Lot',
-      detail: `Lot "${item.lot_number}" ไม่มีบันทึกรับเข้า (RECEIVE) แต่มีการตัดจ่าย (DISPENSE)\nLot ที่มีการรับจริง: ${otherLots || '-'}`,
-      fix: '① แก้ไขใน Excel ก่อนนำเข้า: เปลี่ยน Lot Number ในคอลัมน์ Lot ให้ตรงกับล็อตที่รับจริง\n② หรือเข้าหน้า "ปรับยอดสต็อก" แล้วเพิ่ม RECEIVE ย้อนหลังให้ถูก Lot\n③ ลบ DISPENSE ที่ผิด lot แล้วบันทึกใหม่ให้ถูกต้อง'
+      detail: `Lot "${item.lot_number}" ไม่มีบันทึกรับเข้า (RECEIVE) แต่มีการตัดจ่าย (ISSUE)\nLot ที่มีการรับจริง: ${otherLots || '-'}`,
+      fix: '① แก้ไขใน Excel ก่อนนำเข้า: เปลี่ยน Lot Number ในคอลัมน์ Lot ให้ตรงกับล็อตที่รับจริง\n② หรือเข้าหน้า "ปรับยอดสต็อก" แล้วเพิ่ม RECEIVE ย้อนหลังให้ถูก Lot\n③ ลบ ISSUE ที่ผิด lot แล้วบันทึกใหม่ให้ถูกต้อง'
     };
   }
 
-  // Case 2: Dispense รวมมากกว่า Receive รวม → จ่ายเกิน
+  // Case 2: Issue รวมมากกว่า Receive รวม → จ่ายเกิน
   const totalReceive = receives.reduce((s, m) => s + m.qty, 0);
-  const totalDispense = dispenses.reduce((s, m) => s + m.qty, 0);
-  if (totalDispense > totalReceive && totalReceive > 0) {
+  const totalIssue = issues.reduce((s, m) => s + m.qty, 0);
+  if (totalIssue > totalReceive && totalReceive > 0) {
     return {
-      causeCode: 'OVER_DISPENSE',
+      causeCode: 'OVER_ISSUE',
       cause: 'จ่ายเกินยอดรับ',
-      detail: `รับเข้ารวม: ${totalReceive} | จ่ายออกรวม: ${totalDispense} | ส่วนเกิน: ${totalDispense - totalReceive}`,
+      detail: `รับเข้ารวม: ${totalReceive} | จ่ายออกรวม: ${totalIssue} | ส่วนเกิน: ${totalIssue - totalReceive}`,
       fix: '① ตรวจสอบใบรับเข้า (RECEIVE) ว่าครบถ้วนหรือไม่ อาจมีใบรับที่ยังไม่ได้บันทึก\n② แก้ไขจำนวนใน Excel ก่อนนำเข้า ให้ไม่เกินยอดคงเหลือจริง\n③ ถ้าจ่ายผิดจำนวน ให้ Void เอกสารจ่ายแล้วบันทึกใหม่'
     };
   }
@@ -100,7 +100,7 @@ function detectCause(movements: MovementItem[], item: NegItem): Pick<AnalysisRes
   return {
     causeCode: 'UNKNOWN',
     cause: 'ไม่ทราบสาเหตุ / ซับซ้อน',
-    detail: `รับ: ${totalReceive}, จ่าย: ${totalDispense}, ปรับ: ${adjusts.length} ครั้ง\nต้องตรวจสอบ timeline เพิ่มเติม`,
+    detail: `รับ: ${totalReceive}, จ่าย: ${totalIssue}, ปรับ: ${adjusts.length} ครั้ง\nต้องตรวจสอบ timeline เพิ่มเติม`,
     fix: '① ดูประวัติ Movement ทั้งหมดในหน้า "รายงานความเคลื่อนไหว"\n② เปรียบเทียบยอดรับ-จ่ายทีละรายการ\n③ ปรับยอดใน "ปรับยอดสต็อก" ให้ตรงความเป็นจริง'
   };
 }
@@ -363,7 +363,7 @@ WHERE id = '${r.item.id}';`}</pre>
                             <tbody className="divide-y divide-gray-100">
                               {r.movements.map((m, mi) => {
                                 const typeColor = m.movement_type === 'RECEIVE' ? 'text-emerald-700 bg-emerald-50' :
-                                  m.movement_type === 'DISPENSE' ? 'text-red-700 bg-red-50' :
+                                  m.movement_type === 'ISSUE' ? 'text-red-700 bg-red-50' :
                                   'text-blue-700 bg-blue-50';
                                 return (
                                   <tr key={mi} className="bg-white hover:bg-gray-50">

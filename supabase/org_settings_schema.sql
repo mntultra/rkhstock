@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS public.staff_positions (
 
 -- 5. default_officers (เจ้าหน้าที่เริ่มต้น)
 CREATE TABLE IF NOT EXISTS public.default_officers (
-  role_key VARCHAR(50) PRIMARY KEY, -- e.g., 'hospital_director', 'head_pharmacy', 'head_warehouse', 'dispenser', 'receiver', 'approver'
+  role_key VARCHAR(50) PRIMARY KEY, -- e.g., 'hospital_director', 'head_pharmacy', 'head_warehouse', 'issuer', 'receiver', 'approver'
   user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

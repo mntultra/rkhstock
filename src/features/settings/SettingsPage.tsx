@@ -724,7 +724,7 @@ function DefaultOfficersTab() {
       badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
       roles: [
         { key: 'head_main_warehouse', label: 'หัวหน้าหน่วยคลัง (คลังหลัก)' },
-        { key: 'dispenser_main_warehouse', label: 'ผู้จ่ายเวชภัณฑ์ (คลังหลัก)' },
+        { key: 'issuer_main_warehouse', label: 'ผู้จ่ายเวชภัณฑ์ (คลังหลัก)' },
         { key: 'approver_main_warehouse', label: 'ผู้อนุมัติจ่ายเวชภัณฑ์ (คลังหลัก)' },
       ]
     },
@@ -738,7 +738,7 @@ function DefaultOfficersTab() {
       roles: [
         { key: 'requester', label: 'ผู้เบิกเวชภัณฑ์' },
         { key: 'receiver', label: 'ผู้รับเวชภัณฑ์' },
-        { key: 'dispenser_sub_warehouse', label: 'ผู้จ่ายเวชภัณฑ์ (คลังย่อย)' },
+        { key: 'issuer_sub_warehouse', label: 'ผู้จ่ายเวชภัณฑ์ (คลังย่อย)' },
       ]
     }
   ];

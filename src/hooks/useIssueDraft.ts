@@ -1,7 +1,7 @@
 /**
- * useDispenseDraft
+ * useIssueDraft
  * ─────────────────────────────────────────────────────────────────────────────
- * Manages "live-save" drafts for the Dispense form using IndexedDB.
+ * Manages "live-save" drafts for the Issue form using IndexedDB.
  *
  * Key design decisions:
  *  - Uses IndexedDB (not localStorage) — no 5 MB cap, survives tab crashes.
@@ -18,7 +18,7 @@ import { useEffect, useRef, useCallback } from 'react';
 
 const DB_NAME = 'rkhstock_drafts';
 const DB_VER  = 1;
-const STORE   = 'dispense_drafts';
+const STORE   = 'issue_drafts';
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -65,18 +65,18 @@ async function idbDelete(key: string): Promise<void> {
 
 // ── Draft shape ──────────────────────────────────────────────────────────────
 
-export interface DispenseDraftPayload {
+export interface IssueDraftPayload {
   warehouseId: string;
   toWarehouseId: string;
   actorId: string;
   docDate: string;
   headerNote: string;
-  rows: unknown[];         // serialised DispenseRow[] (opaque to this hook)
+  rows: unknown[];         // serialised IssueRow[] (opaque to this hook)
 }
 
 export interface DraftRecord {
   savedAt: string;         // ISO timestamp
-  payload: DispenseDraftPayload;
+  payload: IssueDraftPayload;
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ interface Options {
 
 interface UseDraftReturn {
   /** Call after every form state change to schedule an auto-save. */
-  scheduleSave: (payload: DispenseDraftPayload) => void;
+  scheduleSave: (payload: IssueDraftPayload) => void;
   /** Check IDB for an existing draft; returns null if nothing found. */
   loadDraft: () => Promise<DraftRecord | null>;
   /** Permanently remove the draft — call immediately after a successful submit. */
@@ -97,15 +97,15 @@ interface UseDraftReturn {
   draftKey: string | null;
 }
 
-export function useDispenseDraft({ userId, debounceMs = 800 }: Options): UseDraftReturn {
+export function useIssueDraft({ userId, debounceMs = 800 }: Options): UseDraftReturn {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Key pattern: dispense_draft_{userId}
+  // Key pattern: issue_draft_{userId}
   // No date suffix — a draft persists until explicitly cleared after submit.
-  const draftKey = userId ? `dispense_draft_${userId}` : null;
+  const draftKey = userId ? `issue_draft_${userId}` : null;
 
   /** Debounced auto-save to IndexedDB. */
-  const scheduleSave = useCallback((payload: DispenseDraftPayload) => {
+  const scheduleSave = useCallback((payload: IssueDraftPayload) => {
     if (!draftKey) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {

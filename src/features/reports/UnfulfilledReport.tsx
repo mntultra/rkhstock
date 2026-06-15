@@ -51,7 +51,7 @@ export default function UnfulfilledReport() {
         `)
         .gte('doc_date', startDate)
         .lte('doc_date', endDate)
-        .neq('status', 'VOIDED')
+        .neq('status', 'REJECTED')
         .order('doc_date', { ascending: false });
 
       if (reqError) throw reqError;

@@ -7,7 +7,7 @@ import { getDefaultOfficers, getOrganizationInfo } from '@/lib/supabase/queries'
 import { useNavigate } from 'react-router-dom';
 import { useKeyboardGridNavigator } from '@/hooks/useKeyboardGridNavigator';
 import * as XLSX from 'xlsx';
-import { useDispenseDraft, formatDraftTimestamp, DispenseDraftPayload, DraftRecord } from '@/hooks/useDispenseDraft';
+import { useIssueDraft, formatDraftTimestamp, IssueDraftPayload, DraftRecord } from '@/hooks/useIssueDraft';
 
 // ==========================================
 
@@ -236,13 +236,13 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data?.user?.id ?? null));
   }, []);
 
-  // Use a per-feature key prefix so requisition drafts don’t collide with dispense drafts.
+  // Use a per-feature key prefix so requisition drafts don’t collide with issue drafts.
   // We achieve this by wrapping the shared hook with a userId suffix — the hook itself
-  // stores key = `dispense_draft_{userId}` so we pass a synthetic userId per-feature.
+  // stores key = `issue_draft_{userId}` so we pass a synthetic userId per-feature.
   const reqUserId = currentUserId ? `req_${currentUserId}` : null;
-  const { scheduleSave, loadDraft, clearDraft } = useDispenseDraft({ userId: reqUserId });
+  const { scheduleSave, loadDraft, clearDraft } = useIssueDraft({ userId: reqUserId });
 
-  const [pendingDraft, setPendingDraft] = useState<{ savedAt: string; payload: DispenseDraftPayload } | null>(null);
+  const [pendingDraft, setPendingDraft] = useState<{ savedAt: string; payload: IssueDraftPayload } | null>(null);
   const draftCheckedRef = useRef(false);
 
   // Check for existing draft once (only create mode, not edit mode)
@@ -360,7 +360,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
     if (!currentUserId || isEditMode) return;
     const hasData = watchAll.items?.some(r => r.product_id);
     if (!hasData) return;
-    const payload: DispenseDraftPayload = {
+    const payload: IssueDraftPayload = {
       // Re-purpose fields: actorId = requester_id, warehouseId = approver_id
       warehouseId: watchAll.approver_id || '',
       toWarehouseId: '',
@@ -1122,7 +1122,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
 
           const parsedItems = parseItems(rows as unknown[][], itemsHeaderIndex, rows.length, dbProducts as unknown as ProductResult[]);
           const requesterStr = String(headerObj.requester ?? '').trim();
-          const approverStr = String(headerObj.approver ?? headerObj.dispenser ?? '').trim();
+          const approverStr = String(headerObj.approver ?? headerObj.issuer ?? '').trim();
           const matchedReq = officers.find(s => s.full_name?.toLowerCase().includes(requesterStr.toLowerCase()));
           const matchedApp = officers.find(s => s.full_name?.toLowerCase().includes(approverStr.toLowerCase()));
 
@@ -1171,7 +1171,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
             const hasDrugCode = firstContentRow.some((cell: any) => ['drug_code', 'code', 'รหัสยา', 'รหัสเวชภัณฑ์'].includes(cell));
             const hasDocNo = firstContentRow.some((cell: any) => ['doc_no', 'เลขที่เอกสาร', 'เลขใบเบิก'].includes(cell));
             const hasRequester = firstContentRow.some((cell: any) => ['requester', 'ผู้เบิก', 'ชื่อผู้เบิก'].includes(cell));
-            const hasApprover = firstContentRow.some((cell: any) => ['approver', 'ผู้อนุมัติ', 'ชื่อผู้อนุมัติจ่าย', 'dispenser', 'ผู้ตรวจรับ'].includes(cell));
+            const hasApprover = firstContentRow.some((cell: any) => ['approver', 'ผู้อนุมัติ', 'ชื่อผู้อนุมัติจ่าย', 'issuer', 'ผู้ตรวจรับ'].includes(cell));
             const hasDocDate = firstContentRow.some((cell: any) => ['doc_date', 'วันที่', 'วันที่เบิก'].includes(cell));
 
             if (hasDrugCode && hasDocNo) {
@@ -1227,7 +1227,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
               if (!docNo || docNo.startsWith('#') || docNo.startsWith('📋')) continue;
 
               const reqVal = getRawValByAlias(row, ['requester', 'ผู้เบิก', 'ชื่อผู้เบิก']);
-              const appVal = getRawValByAlias(row, ['approver', 'ผู้อนุมัติ', 'ชื่อผู้อนุมัติจ่าย', 'dispenser', 'ผู้ตรวจรับ']);
+              const appVal = getRawValByAlias(row, ['approver', 'ผู้อนุมัติ', 'ชื่อผู้อนุมัติจ่าย', 'issuer', 'ผู้ตรวจรับ']);
               const remVal = getRawValByAlias(row, ['remarks', 'remark', 'หมายเหตุ']);
               const fyVal = getRawValByAlias(row, ['fiscal_year', 'ปีงบประมาณ', 'ปี']);
               const statVal = getRawValByAlias(row, ['status', 'สถานะ']);
@@ -1424,7 +1424,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
 
               const blockItems = itemsHeaderIdx !== -1 ? parseItems(mainRows, itemsHeaderIdx - 1, endIdx, dbProducts) : [];
               const requesterStr = String(headerObj.requester ?? '').trim();
-              const approverStr = String(headerObj.approver ?? headerObj.dispenser ?? '').trim();
+              const approverStr = String(headerObj.approver ?? headerObj.issuer ?? '').trim();
               const matchedReq = officers.find(s => s.full_name?.toLowerCase().includes(requesterStr.toLowerCase()));
               const matchedApp = officers.find(s => s.full_name?.toLowerCase().includes(approverStr.toLowerCase()));
 
@@ -1489,7 +1489,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
             doc_date: parseExcelDate(headerObj.doc_date),
             fiscal_year: String(headerObj.fiscal_year ?? '').trim(),
             requester: String(headerObj.requester ?? '').trim(),
-            approver: String(headerObj.approver ?? headerObj.dispenser ?? '').trim(),
+            approver: String(headerObj.approver ?? headerObj.issuer ?? '').trim(),
             status: String(headerObj.status ?? '').trim() || 'draft',
             remarks: String(headerObj.remarks ?? '').trim(),
           });

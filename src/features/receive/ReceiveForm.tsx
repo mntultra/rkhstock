@@ -85,7 +85,7 @@ export default function ReceiveForm() {
     warehouseId, setWarehouseId,
     actorId, setActorId,
     approverMainId, setApproverMainId,
-    dispenserMainId, setDispenserMainId,
+    issuerMainId, setIssuerMainId,
     headerNote, setHeaderNote,
     refDocNo, setRefDocNo,
     refDocDate, setRefDocDate,
@@ -223,7 +223,7 @@ export default function ReceiveForm() {
           <div>
             <label className="block text-xs font-extrabold text-gray-500 uppercase tracking-wider mb-1.5">เลขที่เอกสารอ้างอิง (ใบจ่าย/ใบนำส่ง)</label>
             <input type="text" value={refDocNo} onChange={e => setRefDocNo(e.target.value)}
-              placeholder="เช่น ใบจ่ายเลขที่ DIS-XXX..."
+              placeholder="เช่น ใบจ่ายเลขที่ ISS-XXX..."
               className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-emerald-100 outline-none transition-all text-sm font-medium" />
           </div>
           <div>
@@ -268,9 +268,9 @@ export default function ReceiveForm() {
           </div>
           <div>
             <label className="block text-xs font-extrabold text-gray-500 uppercase tracking-wider mb-1.5">
-              ผู้จ่ายเวชภัณฑ์ (Main Warehouse Dispenser)
+              ผู้จ่ายเวชภัณฑ์ (Main Warehouse Issuer)
             </label>
-            <CustomOfficerSelect value={dispenserMainId} onChange={setDispenserMainId} officers={officers} placeholder="-- เลือกผู้จ่าย --" />
+            <CustomOfficerSelect value={issuerMainId} onChange={setIssuerMainId} officers={officers} placeholder="-- เลือกผู้จ่าย --" />
           </div>
           <div>
             <label className="block text-xs font-extrabold text-gray-500 uppercase tracking-wider mb-1.5">

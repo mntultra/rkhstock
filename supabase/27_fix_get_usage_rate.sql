@@ -9,7 +9,7 @@ CREATE OR REPLACE FUNCTION public.get_usage_rate(
 RETURNS TABLE (
     avg_monthly_usage NUMERIC,
     suggested_order_qty NUMERIC,
-    last_dispense_date DATE
+    last_issue_date DATE
 ) AS $$
 DECLARE
     v_total_qty NUMERIC := 0;
@@ -19,7 +19,7 @@ DECLARE
     v_avg NUMERIC := 0;
     v_suggested NUMERIC := 0;
 BEGIN
-    -- 1. คำนวณหายอดการจ่ายออก (DISPENSE) ทั้งหมดในช่วงเวลาที่กำหนด (ย้อนหลัง p_months เดือน)
+    -- 1. คำนวณหายอดการจ่ายออก (ISSUE) ทั้งหมดในช่วงเวลาที่กำหนด (ย้อนหลัง p_months เดือน)
     -- เฉพาะเอกสารที่ไม่ถูกยกเลิก (is_voided = false)
     SELECT 
         COALESCE(SUM(smi.qty), 0),
@@ -30,7 +30,7 @@ BEGIN
     FROM public.stock_movement_items smi
     JOIN public.stock_movements sm ON smi.movement_id = sm.id
     WHERE smi.product_id = p_product_id
-      AND sm.movement_type = 'DISPENSE'
+      AND sm.movement_type = 'ISSUE'
       AND COALESCE(sm.is_voided, false) = false
       AND sm.doc_date >= CURRENT_DATE - (p_months || ' month')::INTERVAL
       AND sm.doc_date <= CURRENT_DATE;

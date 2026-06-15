@@ -107,7 +107,7 @@ BEGIN
         IF (v_movement_id IS NULL) THEN
             SELECT smi.movement_id, 
                    (CASE WHEN sm.movement_type IN ('RECEIVE', 'RETURN') THEN 'RECEIVE'::stock_audit_action 
-                         WHEN sm.movement_type IN ('DISPENSE', 'BORROW') THEN 'DISPENSE'::stock_audit_action
+                         WHEN sm.movement_type IN ('ISSUE', 'BORROW') THEN 'ISSUE'::stock_audit_action
                          ELSE 'ADJUST'::stock_audit_action 
                     END),
                    COALESCE(auth.uid(), sm.created_by)
