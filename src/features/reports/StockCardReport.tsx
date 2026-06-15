@@ -62,8 +62,8 @@ export default function StockCardReport() {
       }
       const { data } = await supabase
         .from('products')
-        .select('id, generic_name, trade_name, drug_code')
-        .or(`generic_name.ilike.%${searchQuery}%,trade_name.ilike.%${searchQuery}%,drug_code.ilike.%${searchQuery}%`)
+        .select('id, generic_name, abbreviation, drug_code')
+        .or(`generic_name.ilike.%${searchQuery}%,abbreviation.ilike.%${searchQuery}%,drug_code.ilike.%${searchQuery}%`)
         .eq('is_active', true)
         .limit(20);
       setSearchResults(data || []);
@@ -215,7 +215,7 @@ export default function StockCardReport() {
                     className="p-3 hover:bg-emerald-50 cursor-pointer border-b border-gray-50 font-medium flex flex-col"
                   >
                     <span className="text-gray-900">{p.drug_code || ''} - {p.generic_name}</span>
-                    {p.trade_name && <span className="text-xs text-gray-500">({p.trade_name})</span>}
+                    {p.abbreviation && <span className="text-xs text-gray-500">({p.abbreviation})</span>}
                   </li>
                 ))}
               </ul>

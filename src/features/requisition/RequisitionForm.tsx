@@ -447,7 +447,7 @@ export default function RequisitionForm() {
                               title="คลิกหรือกด Enter เพื่อเปลี่ยนเวชภัณฑ์"
                             >
                               <div className="font-black text-gray-900 leading-tight">
-                                {item.product_name} {item.trade_name && <span className="text-gray-500 font-bold ml-1 text-[10px]">({item.trade_name})</span>}
+                                {item.product_name} {item.abbreviation && <span className="text-gray-500 font-bold ml-1 text-[10px]">({item.abbreviation})</span>}
                               </div>
                               <div className="flex flex-wrap gap-1.5 text-[9px] font-bold text-gray-500 mt-1.5">
                                 {item.drug_code && (
@@ -479,7 +479,7 @@ export default function RequisitionForm() {
                                 id={`search-input-${index}`}
                                 data-row={index}
                                 data-col={0}
-                                placeholder="🔍 พิมพ์ชื่อสามัญ (Generic), รหัส, หรือ Trade Name..."
+                                placeholder="🔍 พิมพ์ชื่อสามัญ (Generic), รหัส, หรือ ชื่อย่อ..."
                                 value={activeSearchRowIndex === index ? productSearch : ''}
                                 onChange={(e) => {
                                   setProductSearch(e.target.value);
@@ -536,7 +536,7 @@ export default function RequisitionForm() {
                                       >
                                         <div className="flex justify-between items-start">
                                           <span className="font-extrabold text-gray-900 text-sm">
-                                            {p.generic_name} {p.trade_name && <span className="text-gray-500 font-bold ml-1 text-xs">({p.trade_name})</span>}
+                                            {p.generic_name} {p.abbreviation && <span className="text-gray-500 font-bold ml-1 text-xs">({p.abbreviation})</span>}
                                           </span>
                                         </div>
                                         <div className="flex items-center flex-wrap gap-1.5 mt-1">

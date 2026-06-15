@@ -400,7 +400,7 @@ export default function BorrowForm() {
                   <div className="flex items-center justify-between bg-white px-4 py-3 rounded-xl border border-emerald-200 shadow-sm">
                     <div>
                       <p className="font-bold text-emerald-900 leading-none">{row.product.generic_name}</p>
-                      {row.product.trade_name && <p className="text-xs text-gray-500 mt-1">{row.product.trade_name}</p>}
+                      {row.product.abbreviation && <p className="text-xs text-gray-500 mt-1">{row.product.abbreviation}</p>}
                     </div>
                     <button 
                       onClick={() => {

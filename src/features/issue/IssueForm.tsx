@@ -334,7 +334,7 @@ export default function IssueForm() {
         id: r.id,
         productId: r.product?.id,
         productName: r.product?.generic_name,
-        tradeName: r.product?.trade_name,
+        abbreviation: r.product?.abbreviation,
         drugCode: r.product?.drug_code,
         isHighAlert: r.product?.is_high_alert,
         isPsychoNarco: r.product?.is_psycho_narco,
@@ -365,7 +365,7 @@ export default function IssueForm() {
         product: r.productId ? {
           id: r.productId,
           generic_name: r.productName || '',
-          trade_name: r.tradeName || '',
+          abbreviation: r.abbreviation || '',
           drug_code: r.drugCode || '',
           is_high_alert: r.isHighAlert || false,
           is_psycho_narco: r.isPsychoNarco || false,
@@ -564,22 +564,52 @@ export default function IssueForm() {
     setScannerInstance(null);
   };
 
-  const handleScanProductCode = async (rowId: string, barcode: string) => {
+  const handleScanProductCode = async (rowId: string, rawBarcode: string) => {
     try {
+      // ---- GS1-128 Parser: ดึงเฉพาะ GTIN จาก AI (01) ----
+      // รูปแบบ: (01)08851234500001(17)261231(10)LOT001
+      const gs1Match = rawBarcode.match(/(?:\(01\)|^01)(\d{14})/);
+      const barcode = gs1Match ? gs1Match[1] : rawBarcode.trim();
+
+      // ---- Step 1: ค้นใน product_barcodes (One-to-Many) ----
+      const { data: barcodeRow } = await supabase
+        .from('product_barcodes')
+        .select('product_id')
+        .eq('barcode', barcode)
+        .maybeSingle();
+
+      let productId: string | null = barcodeRow?.product_id ?? null;
+
+      // ---- Step 2: Fallback → products.drug_code (backward compat) ----
+      if (!productId) {
+        const { data: byCode } = await supabase
+          .from('products')
+          .select('id')
+          .eq('drug_code', barcode)
+          .eq('is_active', true)
+          .maybeSingle();
+        productId = byCode?.id ?? null;
+      }
+
+      if (!productId) {
+        alert('ไม่พบเวชภัณฑ์จากบาร์โค้ดนี้');
+        return;
+      }
+
+      // ---- Step 3: ดึงข้อมูลสินค้าจาก productId ----
       const { data } = await supabase
         .from('products')
-        .select('id, drug_code, generic_name, trade_name, pack_size, manual_monthly_usage, is_psycho_narco, is_high_alert, is_cold_storage, master_units(name:unit_name), master_dosage_forms(name_en, abbreviation)')
-        .eq('is_active', true)
-        .or(`drug_code.eq.${barcode},generic_name.ilike.%${barcode}%`)
-        .limit(1);
-      
-      if (data && data[0]) {
-        const p = data[0];
+        .select('id, drug_code, generic_name, abbreviation, pack_size, manual_monthly_usage, is_psycho_narco, is_high_alert, is_cold_storage, master_units(name:unit_name), master_dosage_forms(name_en, abbreviation)')
+        .eq('id', productId)
+        .single();
+
+      if (data) {
+        const p = data;
         handleProductSelect(rowId, {
           id: p.id,
           drug_code: p.drug_code,
           generic_name: p.generic_name,
-          trade_name: p.trade_name,
+          abbreviation: p.abbreviation,
           pack_size: p.pack_size,
           is_psycho_narco: p.is_psycho_narco,
           is_high_alert: p.is_high_alert,
@@ -1142,7 +1172,7 @@ export default function IssueForm() {
                             <div className="flex flex-col gap-1 w-full min-w-0">
                               <span className="font-extrabold text-base lg:text-sm text-gray-900 truncate">
                                 {row.product.generic_name}
-                                {row.product.trade_name && <span className="text-gray-500 font-medium text-xs ml-1.5">({row.product.trade_name})</span>}
+                                {row.product.abbreviation && <span className="text-gray-500 font-medium text-xs ml-1.5">({row.product.abbreviation})</span>}
                               </span>
                               <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
                                 <span className="text-[10px] lg:text-[10px] bg-white text-gray-600 border border-gray-200 px-2 py-0.5 rounded font-mono font-bold uppercase">{row.product.drug_code || '-'}</span>

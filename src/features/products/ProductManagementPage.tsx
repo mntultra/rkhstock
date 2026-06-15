@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Search, Plus, Edit2, Trash2, Pill, Activity, XOctagon, FileSpreadsheet, Upload, X, Download, Info } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Pill, Activity, XOctagon, FileSpreadsheet, Upload, X, Download, Info, QrCode } from 'lucide-react';
 import { DosageForm, ProductType, Unit } from '@/types';
 import * as XLSX from 'xlsx';
+import ProductBarcodeModal from './components/ProductBarcodeModal';
 
 export default function ProductManagementPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -10,6 +11,7 @@ export default function ProductManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'active' | 'inactive'>('active');
   const [isImporting, setIsImporting] = useState(false);
+  const [barcodePanelProduct, setBarcodePanelProduct] = useState<{ id: string; name: string } | null>(null);
 
   // Import Wizard States
   const [importStep, setImportStep] = useState<'upload' | 'preview' | 'importing' | 'summary'>('upload');
@@ -28,7 +30,7 @@ export default function ProductManagementPage() {
   const [formData, setFormData] = useState({
     drug_code: '',
     generic_name: '',
-    trade_name: '',
+    abbreviation: '',
     dosage_form_id: '',
     pack_size: 1,
     unit_id: '',
@@ -60,7 +62,7 @@ export default function ProductManagementPage() {
       .order('generic_name');
 
     if (search) {
-      query = query.or(`generic_name.ilike.%${search}%,trade_name.ilike.%${search}%,drug_code.ilike.%${search}%`);
+      query = query.or(`generic_name.ilike.%${search}%,abbreviation.ilike.%${search}%,drug_code.ilike.%${search}%`);
     }
 
     const { data, error } = await query;
@@ -94,7 +96,7 @@ export default function ProductManagementPage() {
     const headers = [
       'รหัสเวชภัณฑ์ (Drug Code)*',
       'ชื่อสามัญ (Generic Name)*',
-      'ชื่อการค้า (Trade Name)',
+      'ชื่อย่อ (Abbreviation)',
       'ชื่อย่อรูปแบบ (Dosage Form)*',
       'ประเภทเวชภัณฑ์ (Product Type) - เช่น ยาในบัญชี, ยานอกบัญชี, เวชภัณฑ์มิใช่ยา',
       'จำนวนบรรจุต่อแพ็ค (Pack Size) - ตัวเลข เช่น 1, 10, 100',
@@ -118,7 +120,7 @@ export default function ProductManagementPage() {
     ws['!cols'] = [
       { wch: 25 }, // Drug Code
       { wch: 30 }, // Generic Name
-      { wch: 25 }, // Trade Name
+      { wch: 25 }, // Abbreviation
       { wch: 30 }, // Dosage Form (Abbr)
       { wch: 25 }, // Product Type
       { wch: 20 }, // Pack Size
@@ -140,7 +142,7 @@ export default function ProductManagementPage() {
     const headers = [
       'drug_code',
       'generic_name',
-      'trade_name',
+      'abbreviation',
       'dosage_form_id',
       'product_type_id',
       'pack_size',
@@ -203,7 +205,7 @@ export default function ProductManagementPage() {
 
           const drugCode = row[0]?.toString().trim() || '';
           const genericName = row[1]?.toString().trim() || '';
-          const tradeName = row[2]?.toString().trim() || '';
+          const abbreviation = row[2]?.toString().trim() || '';
           const dosageFormName = row[3]?.toString().trim() || '';
           const productTypeName = row[4]?.toString().trim() || '';
           const packSize = parseInt(row[5]) || 1;
@@ -215,7 +217,7 @@ export default function ProductManagementPage() {
           const isColdStorage = row[11]?.toString().trim().toUpperCase() === 'TRUE';
 
           // ข้ามแถวที่ว่างเปล่าจริง ๆ
-          if (!drugCode && !genericName && !tradeName) continue;
+          if (!drugCode && !genericName && !abbreviation) continue;
 
           let validationStatus: 'ready' | 'error' = 'ready';
           let errorMessage = '';
@@ -230,7 +232,7 @@ export default function ProductManagementPage() {
             rowNum: idx + 2,
             drugCode,
             genericName,
-            tradeName,
+            abbreviation,
             dosageFormName,
             productTypeName,
             packSize,
@@ -403,7 +405,7 @@ export default function ProductManagementPage() {
           .insert([{
             drug_code: item.drugCode,
             generic_name: item.genericName,
-            trade_name: item.tradeName,
+            abbreviation: item.abbreviation,
             dosage_form_id: dosageFormId,
             product_type_id: productTypeId,
             pack_size: item.packSize,
@@ -469,7 +471,7 @@ export default function ProductManagementPage() {
       }
       setIsModalOpen(false);
       setEditingId(null);
-      setFormData({ drug_code: '', generic_name: '', trade_name: '', dosage_form_id: '', pack_size: 1, unit_id: '', product_type_id: '', unit_price: 0, is_psycho_narco: false, is_high_alert: false, is_cold_storage: false, is_active: true, manual_monthly_usage: 0 });
+      setFormData({ drug_code: '', generic_name: '', abbreviation: '', dosage_form_id: '', pack_size: 1, unit_id: '', product_type_id: '', unit_price: 0, is_psycho_narco: false, is_high_alert: false, is_cold_storage: false, is_active: true, manual_monthly_usage: 0 });
       fetchProducts();
     } catch (err: any) {
       alert(err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
@@ -481,7 +483,7 @@ export default function ProductManagementPage() {
     setFormData({
       drug_code: product.drug_code || '',
       generic_name: product.generic_name || '',
-      trade_name: product.trade_name || '',
+      abbreviation: product.abbreviation || '',
       dosage_form_id: product.dosage_form_id || '',
       pack_size: product.pack_size || 1,
       unit_id: product.unit_id || '',
@@ -534,7 +536,7 @@ export default function ProductManagementPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
-              placeholder="ค้นหาชื่อเวชภัณฑ์, Trade Name, รหัส..."
+              placeholder="ค้นหาชื่อเวชภัณฑ์, ชื่อย่อ, รหัส..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 outline-none transition-all shadow-sm"
@@ -554,7 +556,7 @@ export default function ProductManagementPage() {
 
             {/* Add New Item Button */}
             <button
-              onClick={() => { setEditingId(null); setFormData({ drug_code: '', generic_name: '', trade_name: '', dosage_form_id: '', pack_size: 1, unit_id: '', product_type_id: '', unit_price: 0, is_psycho_narco: false, is_high_alert: false, is_cold_storage: false, is_active: true, manual_monthly_usage: 0 }); setIsModalOpen(true); }}
+              onClick={() => { setEditingId(null); setFormData({ drug_code: '', generic_name: '', abbreviation: '', dosage_form_id: '', pack_size: 1, unit_id: '', product_type_id: '', unit_price: 0, is_psycho_narco: false, is_high_alert: false, is_cold_storage: false, is_active: true, manual_monthly_usage: 0 }); setIsModalOpen(true); }}
               className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold hover:bg-emerald-850 hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm whitespace-nowrap"
             >
               <Plus size={18} />
@@ -607,7 +609,7 @@ export default function ProductManagementPage() {
           <thead className="bg-white sticky top-0 shadow-sm z-10">
             <tr>
               <th className="px-4 py-4 text-xs font-extrabold text-gray-500 uppercase border-b border-gray-100">รหัสเวชภัณฑ์</th>
-              <th className="px-4 py-4 text-xs font-extrabold text-gray-500 uppercase border-b border-gray-100">ชื่อสามัญ (Generic) / การค้า (Trade)</th>
+              <th className="px-4 py-4 text-xs font-extrabold text-gray-500 uppercase border-b border-gray-100">ชื่อสามัญ (Generic) / ชื่อย่อ (Abbreviation)</th>
               <th className="px-4 py-4 text-xs font-extrabold text-gray-500 uppercase border-b border-gray-100">รูปแบบ (Dosage)</th>
               <th className="px-4 py-4 text-xs font-extrabold text-gray-500 uppercase border-b border-gray-100 text-center">บรรจุภัณฑ์</th>
               <th className="px-4 py-4 text-xs font-extrabold text-gray-500 uppercase border-b border-gray-100 text-center">อัตราการใช้ (Manual)</th>
@@ -638,7 +640,7 @@ export default function ProductManagementPage() {
                         {item.is_cold_storage && <span className="px-1.5 py-0.5 bg-sky-100 text-sky-700 text-[10px] rounded font-bold font-sans">Cold</span>}
                       </div>
                     </div>
-                    <div className="text-sm text-gray-500">{item.trade_name}</div>
+                    <div className="text-sm text-gray-500">{item.abbreviation}</div>
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-sm text-gray-700">{item.master_dosage_forms?.name_en || '-'}</span>
@@ -668,6 +670,13 @@ export default function ProductManagementPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => setBarcodePanelProduct({ id: item.id, name: item.generic_name })}
+                        className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                        title="จัดการบาร์โค้ด"
+                      >
+                        <QrCode size={18} />
+                      </button>
                       <button
                         onClick={() => handleEdit(item)}
                         className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
@@ -722,9 +731,9 @@ export default function ProductManagementPage() {
               </div>
 
               <div className="col-span-1 md:col-span-2">
-                <label className="block text-sm font-bold text-gray-700 mb-1">ชื่อการค้า (Trade Name)</label>
+                <label className="block text-sm font-bold text-gray-700 mb-1">ชื่อย่อ (Abbreviation)</label>
                 <input
-                  type="text" value={formData.trade_name} onChange={e => setFormData({ ...formData, trade_name: e.target.value })}
+                  type="text" value={formData.abbreviation} onChange={e => setFormData({ ...formData, abbreviation: e.target.value })}
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 outline-none"
                 />
               </div>
@@ -1182,6 +1191,15 @@ export default function ProductManagementPage() {
 
           </div>
         </div>
+      )}
+
+      {/* Barcode Management Modal */}
+      {barcodePanelProduct && (
+        <ProductBarcodeModal
+          productId={barcodePanelProduct.id}
+          productName={barcodePanelProduct.name}
+          onClose={() => setBarcodePanelProduct(null)}
+        />
       )}
     </div>
   );

@@ -33,7 +33,7 @@ export interface Product {
   id: string;
   drug_code?: string | null;
   generic_name: string;
-  trade_name?: string | null;
+  abbreviation?: string | null;
   is_active?: boolean;
   unit_id?: string | null;
   unit?: Unit | null;
@@ -49,6 +49,22 @@ export interface Product {
 
 export interface ProductSearchResult extends Product {
   unit_id?: any; // To support Supabase join like unit_id(name)
+}
+
+// ---------------------------------------------------------
+// Barcode System (One-to-Many)
+// ---------------------------------------------------------
+export type BarcodeType = 'EAN13' | 'Code128' | 'QR' | 'GS1-128' | 'DataMatrix' | 'Other';
+
+export interface ProductBarcode {
+  id: string;
+  product_id: string;
+  barcode: string;
+  brand_name?: string | null;
+  barcode_type?: BarcodeType | null;
+  is_primary?: boolean;
+  notes?: string | null;
+  created_at?: string;
 }
 
 export interface Warehouse {

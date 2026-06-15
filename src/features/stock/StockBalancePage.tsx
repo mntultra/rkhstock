@@ -26,7 +26,7 @@ export default function StockBalancePage() {
           id, current_qty, lot_id,
           lots ( lot_number, expiry_date, unit_price ),
           products ( 
-            generic_name, trade_name, drug_code, unit_price, pack_size, is_cold_storage, is_psycho_narco, is_high_alert,
+            generic_name, abbreviation, drug_code, unit_price, pack_size, is_cold_storage, is_psycho_narco, is_high_alert,
             master_dosage_forms(name_en, name_th, abbreviation),
             master_units(name:unit_name)
           )
@@ -52,7 +52,7 @@ export default function StockBalancePage() {
     const df = p?.master_dosage_forms;
     return (
       p?.generic_name?.toLowerCase().includes(search.toLowerCase()) ||
-      p?.trade_name?.toLowerCase().includes(search.toLowerCase()) ||
+      p?.abbreviation?.toLowerCase().includes(search.toLowerCase()) ||
       p?.drug_code?.toLowerCase().includes(search.toLowerCase()) ||
       b.lot_number?.toLowerCase().includes(search.toLowerCase()) ||
       df?.name_en?.toLowerCase().includes(search.toLowerCase()) ||
@@ -101,7 +101,7 @@ export default function StockBalancePage() {
     }
     
     // สร้างหัวตาราง CSV
-    const headers = ['Product Code', 'Product Name (Generic Name)', 'Trade Name', 'Dosage Form', 'Lot Number', 'Exp', 'จำนวนคงเหลือ', 'ราคาต่อหน่วย', 'มูลค่ารวม'];
+    const headers = ['Product Code', 'Product Name (Generic Name)', 'Abbreviation', 'Dosage Form', 'Lot Number', 'Exp', 'จำนวนคงเหลือ', 'ราคาต่อหน่วย', 'มูลค่ารวม'];
     
     // แปลงข้อมูลแถว
     const rows = filteredBalances.map(b => {
@@ -112,7 +112,7 @@ export default function StockBalancePage() {
       return [
         p?.drug_code || '',
         p?.generic_name || '',
-        p?.trade_name || '',
+        p?.abbreviation || '',
         dosageStr.trim(),
         b.lot_number || '',
         b.expiry_date ? formatDate(b.expiry_date) : '',
@@ -205,7 +205,7 @@ export default function StockBalancePage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500" size={18} />
             <input
               type="text"
-              placeholder="ค้นหาชื่อเวชภัณฑ์, Trade Name, Lot..."
+              placeholder="ค้นหาชื่อเวชภัณฑ์, ชื่อย่อ, ล็อต..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 outline-none transition-all shadow-sm text-sm"
@@ -289,7 +289,7 @@ export default function StockBalancePage() {
                   <td className="px-6 py-4">
                     <div className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors">
                       {item.products?.generic_name} 
-                      {item.products?.trade_name && <span className="text-gray-500 font-medium text-xs ml-1.5">({item.products?.trade_name})</span>}
+                      {item.products?.abbreviation && <span className="text-gray-500 font-medium text-xs ml-1.5">({item.products?.abbreviation})</span>}
                     </div>
                     <div className="text-xs text-gray-500 font-medium mt-1 flex items-center gap-1.5 flex-wrap">
                       <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">{item.products?.drug_code || '-'}</span>

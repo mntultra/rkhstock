@@ -21,7 +21,7 @@ export default function AddManualExpiryModal({ onClose, onSuccess, itemToEdit }:
       ? {
           id: itemToEdit.product_id || '',
           generic_name: itemToEdit.generic_name || '',
-          trade_name: itemToEdit.trade_name || null,
+          abbreviation: itemToEdit.abbreviation || null,
           drug_code: itemToEdit.drug_code || null,
           unit_price: itemToEdit.unit_price || 0,
         }
@@ -172,7 +172,7 @@ export default function AddManualExpiryModal({ onClose, onSuccess, itemToEdit }:
                   <div className="flex flex-col">
                     <span className="font-extrabold text-emerald-900">{selectedProduct.generic_name}</span>
                     <span className="text-xs text-emerald-600 font-bold mt-0.5">
-                      รหัส: {selectedProduct.drug_code || '-'} {selectedProduct.trade_name && `• ${selectedProduct.trade_name}`}
+                      รหัส: {selectedProduct.drug_code || '-'} {selectedProduct.abbreviation && `• ${selectedProduct.abbreviation}`}
                     </span>
                   </div>
                   {!itemToEdit && (

@@ -39,7 +39,7 @@ type ProductUnit = { name: string };
 type ProductInfo = {
   drug_code: string;
   generic_name: string;
-  trade_name?: string | null;
+  abbreviation?: string | null;
   is_cold_storage?: boolean;
   is_high_alert?: boolean;
   master_units?: ProductUnit;
@@ -119,7 +119,7 @@ function useRequisitionPrintData(id: string | undefined) {
           .select(`
             id, qty, product_id, pack_size, unit_name, remarks, substock_qty, usage_rate,
             product:products (
-              drug_code, generic_name, trade_name, is_cold_storage, is_high_alert,
+              drug_code, generic_name, abbreviation, is_cold_storage, is_high_alert,
               master_units(name:unit_name),
               master_dosage_forms(name_en, abbreviation)
             )
@@ -448,8 +448,8 @@ export default function PrintRequisition() {
                                 <td className="text-center">{currentIndex}</td>
                                 <td className="text-left">
                                   {item.product?.generic_name}
-                                  {item.product?.trade_name && (
-                                    <span> ({item.product.trade_name})</span>
+                                  {item.product?.abbreviation && (
+                                    <span> ({item.product.abbreviation})</span>
                                   )}
                                 </td>
                                 <td className="text-center">{unitDisplay}</td>

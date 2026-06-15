@@ -13,7 +13,7 @@ type ProductSearchInputProps = {
 export default function ProductSearchInput({
   onSelect,
   warehouseId,
-  placeholder = 'พิมพ์ชื่อสามัญ (Generic), รหัส, หรือ Trade Name...',
+  placeholder = 'พิมพ์ชื่อสามัญ (Generic), รหัส, หรือ Abbreviation...',
   className = '',
   onClickOutside,
   autoFocus = false
@@ -151,7 +151,7 @@ export default function ProductSearchInput({
                 >
                   <div className="font-extrabold text-gray-900 text-[15px] leading-tight">
                     {product.generic_name}
-                    {product.trade_name && <span className="text-gray-500 font-medium text-xs ml-1.5">({product.trade_name})</span>}
+                    {product.abbreviation && <span className="text-gray-500 font-medium text-xs ml-1.5">({product.abbreviation})</span>}
                   </div>
                   
                   <div className="flex flex-wrap items-center gap-2">

@@ -540,7 +540,7 @@ export default function ExpiredForm() {
                         <div className="flex flex-col">
                           <span className="font-extrabold text-sm">{row.product.generic_name}</span>
                           <span className="text-[10px] text-emerald-600 font-bold uppercase mt-0.5 tracking-wider">
-                            รหัส: {row.product.drug_code || '-'} {row.product.trade_name && `• ${row.product.trade_name}`}
+                            รหัส: {row.product.drug_code || '-'} {row.product.abbreviation && `• ${row.product.abbreviation}`}
                           </span>
                         </div>
                         <button

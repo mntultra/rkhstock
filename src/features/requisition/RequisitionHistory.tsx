@@ -114,7 +114,7 @@ export default function RequisitionHistory() {
         .select(`
           id, qty, pack_size, unit_name, remarks, substock_qty, usage_rate,
           product:products (
-            drug_code, generic_name, trade_name,
+            drug_code, generic_name, abbreviation,
             master_units(name:unit_name),
             master_dosage_forms(name_en, abbreviation)
           )
@@ -156,7 +156,7 @@ export default function RequisitionHistory() {
   const filteredModalItems = modalItems.filter(item => {
     const code = (item.product?.drug_code || '').toLowerCase();
     const name = (item.product?.generic_name || '').toLowerCase();
-    const trade = (item.product?.trade_name || '').toLowerCase();
+    const trade = (item.product?.abbreviation || '').toLowerCase();
     const form = (item.product?.master_dosage_forms?.abbreviation || item.product?.master_dosage_forms?.name_en || '').toLowerCase();
 
     const codeMatch = code.includes(codeFilter.toLowerCase());
@@ -643,9 +643,9 @@ export default function RequisitionHistory() {
                                 <td className="p-4 font-mono font-bold text-gray-700">{item.product?.drug_code || '-'}</td>
                                 <td className="p-4">
                                   <div className="font-extrabold text-gray-900">{item.product?.generic_name}</div>
-                                  {item.product?.trade_name && (
+                                  {item.product?.abbreviation && (
                                     <div className="text-[11px] text-gray-400 font-bold mt-0.5">
-                                      Trade: {item.product.trade_name}
+                                      ชื่อย่อ: {item.product.abbreviation}
                                     </div>
                                   )}
                                 </td>

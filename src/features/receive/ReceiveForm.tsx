@@ -365,7 +365,7 @@ export default function ReceiveForm() {
                         >
                           <div className="min-w-0 flex-1">
                             <div className="font-black text-gray-900 leading-tight">
-                              {item.product.generic_name} {item.product.trade_name && <span className="text-gray-500 font-bold ml-1 text-[10px]">({item.product.trade_name})</span>}
+                              {item.product.generic_name} {item.product.abbreviation && <span className="text-gray-500 font-bold ml-1 text-[10px]">({item.product.abbreviation})</span>}
                             </div>
                             <div className="flex flex-wrap gap-1.5 text-[9px] font-bold text-gray-500 mt-1.5">
                               {item.product.drug_code && (
@@ -409,7 +409,7 @@ export default function ReceiveForm() {
                           <ProductSearchInput 
                             onSelect={(prod) => handleUpdateRow(item.id, 'product', prod)}
                             onClickOutside={() => setEditingRowId(null)}
-                            placeholder={item.product ? "ค้นหายาเพื่อเปลี่ยน..." : "พิมพ์ชื่อสามัญ (Generic), รหัส, หรือ Trade Name..."}
+                            placeholder={item.product ? "ค้นหายาเพื่อเปลี่ยน..." : "พิมพ์ชื่อสามัญ (Generic), รหัส, หรือ Abbreviation..."}
                             autoFocus={editingRowId === item.id}
                           />
                         </div>

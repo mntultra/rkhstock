@@ -55,7 +55,7 @@ export default function PhysicalCountSection() {
         .from('stock_balances')
         .select(`
           id, current_qty, lots!inner(id, lot_number, expiry_date), product_id, warehouse_id,
-          products ( generic_name, trade_name, drug_code, pack_size, unit_id:unit_id(name:unit_name) )
+          products ( generic_name, abbreviation, drug_code, pack_size, unit_id:unit_id(name:unit_name) )
         `)
         .eq('warehouse_id', whId)
         .order('expiry_date', { ascending: true, referencedTable: 'lots' });
@@ -204,7 +204,7 @@ export default function PhysicalCountSection() {
   // ค้นหากรองข้อมูลยาระหว่างแสดงผล
   const filteredRows = rows.filter(r => 
     r.balance.products?.generic_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.balance.products?.trade_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    r.balance.products?.abbreviation?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     r.balance.lot_number?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -344,7 +344,7 @@ export default function PhysicalCountSection() {
                       <td className="py-4 px-4">
                         <div className="font-bold text-gray-900">{row.balance.products?.generic_name}</div>
                         <div className="text-[11px] text-gray-400 font-bold mt-0.5">
-                          รหัส: {row.balance.products?.drug_code || '-'} {row.balance.products?.trade_name && `• ${row.balance.products?.trade_name}`}
+                          รหัส: {row.balance.products?.drug_code || '-'} {row.balance.products?.abbreviation && `• ${row.balance.products?.abbreviation}`}
                         </div>
                       </td>
 

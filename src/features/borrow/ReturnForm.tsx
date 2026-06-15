@@ -33,7 +33,7 @@ export default function ReturnForm() {
           .from('borrowings')
           .select(`
             *,
-            products ( generic_name, trade_name ),
+            products ( generic_name, abbreviation ),
             officers ( full_name ),
             master_warehouses ( name )
           `)
@@ -209,7 +209,7 @@ export default function ReturnForm() {
               {borrowing.products?.generic_name}
             </p>
             <p className="text-sm text-gray-500 font-medium">
-              {borrowing.products?.trade_name}
+              {borrowing.products?.abbreviation}
             </p>
           </div>
           <div>

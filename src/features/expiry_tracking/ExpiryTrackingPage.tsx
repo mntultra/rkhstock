@@ -11,7 +11,7 @@ interface ExpiryItem {
   id: string;
   source: 'SYSTEM' | 'MANUAL';
   generic_name: string;
-  trade_name?: string;
+  abbreviation?: string;
   drug_code?: string;
   lot_number: string;
   expiry_date: string;
@@ -108,7 +108,7 @@ export default function ExpiryTrackingPage() {
           id,
           current_qty,
           warehouse_id,
-          products ( id, generic_name, trade_name, drug_code, pack_size, unit_id, master_units(unit_name), unit_price ),
+          products ( id, generic_name, abbreviation, drug_code, pack_size, unit_id, master_units(unit_name), unit_price ),
           lots!inner ( id, lot_number, expiry_date, unit_price )
         `)
         .gt('current_qty', 0)
@@ -128,7 +128,7 @@ export default function ExpiryTrackingPage() {
           manufacturer,
           remark,
           status,
-          products ( id, generic_name, trade_name, drug_code, pack_size, unit_id, master_units(unit_name), unit_price )
+          products ( id, generic_name, abbreviation, drug_code, pack_size, unit_id, master_units(unit_name), unit_price )
         `);
 
       if (manError) throw manError;
@@ -148,7 +148,7 @@ export default function ExpiryTrackingPage() {
           id: `sys_${item.id}`,
           source: 'SYSTEM',
           generic_name: item.products?.generic_name || 'Unknown',
-          trade_name: item.products?.trade_name,
+          abbreviation: item.products?.abbreviation,
           drug_code: item.products?.drug_code,
           lot_number: item.lots?.lot_number || '-',
           expiry_date: item.lots.expiry_date,
@@ -175,7 +175,7 @@ export default function ExpiryTrackingPage() {
           id: `man_${item.id}`,
           source: 'MANUAL',
           generic_name: item.products?.generic_name || 'Unknown',
-          trade_name: item.products?.trade_name,
+          abbreviation: item.products?.abbreviation,
           drug_code: item.products?.drug_code,
           lot_number: item.lot_number || '-',
           expiry_date: item.expiry_date,
@@ -337,7 +337,7 @@ export default function ExpiryTrackingPage() {
     return items.filter(item => {
       if (search) {
         const query = search.toLowerCase();
-        const matchName = item.generic_name.toLowerCase().includes(query) || (item.trade_name?.toLowerCase().includes(query));
+        const matchName = item.generic_name.toLowerCase().includes(query) || (item.abbreviation?.toLowerCase().includes(query));
         const matchCode = item.drug_code?.toLowerCase().includes(query);
         const matchLot = item.lot_number?.toLowerCase().includes(query);
         if (!matchName && !matchCode && !matchLot) return false;
@@ -471,7 +471,7 @@ export default function ExpiryTrackingPage() {
       fileName = `RKH_Expiry_Report_${new Date().toISOString().split('T')[0]}`;
       data = filteredItems.map(item => ({
         'เวชภัณฑ์': item.generic_name,
-        'ชื่อการค้า': item.trade_name || '',
+        'ชื่อย่อ': item.abbreviation || '',
         'รหัสเวชภัณฑ์': item.drug_code || '',
         'แหล่งข้อมูล': item.source === 'SYSTEM' ? 'คลังเวชภัณฑ์ (In-Stock)' : 'ชั้นจุดจ่าย (Manual Tracking)',
         'สถานที่': item.location,

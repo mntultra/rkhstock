@@ -23,7 +23,7 @@ export function useProductSearch(debounceMs: number = 300, warehouseId?: string)
         if (query && query.trim().length >= 2) {
           const safeQuery = query.replace(/,/g, '').trim();
           const searchPattern = `%${safeQuery}%`;
-          queryBuilder = queryBuilder.or(`generic_name.ilike.${searchPattern},trade_name.ilike.${searchPattern},drug_code.ilike.${searchPattern},gpu_code.ilike.${searchPattern}`);
+          queryBuilder = queryBuilder.or(`generic_name.ilike.${searchPattern},abbreviation.ilike.${searchPattern},drug_code.ilike.${searchPattern},gpu_code.ilike.${searchPattern}`);
         } else {
           // If query is empty or too short, order alphabetically by generic_name
           queryBuilder = queryBuilder.order('generic_name', { ascending: true });

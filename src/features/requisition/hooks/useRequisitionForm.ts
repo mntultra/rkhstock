@@ -25,7 +25,7 @@ export interface ProductResult {
   id: string;
   drug_code?: string;
   generic_name: string;
-  trade_name?: string;
+  abbreviation?: string;
   pack_size?: number;
   manual_monthly_usage?: number;
   is_psycho_narco?: boolean;
@@ -66,7 +66,7 @@ export interface ImportItem {
   is_cold_storage?: boolean;
   substock_qty?: number;
   remarks?: string;
-  trade_name?: string;
+  abbreviation?: string;
   errorMessage?: string;
   dosage_form_name?: string;
 }
@@ -114,7 +114,7 @@ const itemSchema = z.object({
   substock_qty: z.number().default(0),
   remarks: z.string().optional(),
   unit_name: z.string().optional().nullable(),
-  trade_name: z.string().optional().nullable(),
+  abbreviation: z.string().optional().nullable(),
   dosage_form_name: z.string().optional().nullable(),
 });
 
@@ -341,7 +341,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
           is_cold_storage: false,
           substock_qty: 0,
           remarks: '',
-          trade_name: '',
+          abbreviation: '',
         },
       ],
     },
@@ -393,7 +393,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
         is_cold_storage: false,
         substock_qty: 0,
         remarks: '',
-        trade_name: '',
+        abbreviation: '',
       });
       setTimeout(() => {
         const newRowIndex = fields.length;
@@ -426,7 +426,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
           .select(`
             id, qty, pack_size, unit_name, remarks, substock_qty, usage_rate, product_id,
             product:products (
-              drug_code, generic_name, trade_name, is_psycho_narco, is_high_alert, is_cold_storage,
+              drug_code, generic_name, abbreviation, is_psycho_narco, is_high_alert, is_cold_storage,
               manual_monthly_usage,
               master_dosage_forms(name_en, abbreviation)
             )
@@ -483,7 +483,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
               is_cold_storage: product?.is_cold_storage || false,
               substock_qty: item.substock_qty ?? 0,
               remarks: item.remarks || '',
-              trade_name: product?.trade_name || '',
+              abbreviation: product?.abbreviation || '',
               unit_name: item.unit_name || '',
               dosage_form_name: getDosageFormName(product?.master_dosage_forms)
             };
@@ -515,7 +515,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
               product_id: '', product_name: '', qty: 0, pack_size: 1, is_manual_rate: false, months: globalMonths,
               suggested_qty: 0, avg_monthly_usage: 0, manual_monthly_usage: 0, usage_rate: 0,
               drug_code: '', is_psycho_narco: false, is_high_alert: false, is_cold_storage: false,
-              substock_qty: 0, remarks: '', trade_name: ''
+              substock_qty: 0, remarks: '', abbreviation: ''
             }]
           });
         }
@@ -609,7 +609,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
           id, 
           drug_code, 
           generic_name, 
-          trade_name, 
+          abbreviation, 
           pack_size, 
           manual_monthly_usage, 
           is_psycho_narco, 
@@ -621,7 +621,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
         .eq('is_active', true);
 
       if (productSearch.trim().length > 0) {
-        query = query.or(`generic_name.ilike.%${productSearch}%,trade_name.ilike.%${productSearch}%,drug_code.ilike.%${productSearch}%`);
+        query = query.or(`generic_name.ilike.%${productSearch}%,abbreviation.ilike.%${productSearch}%,drug_code.ilike.%${productSearch}%`);
       }
       const { data } = await query.order('generic_name').limit(100);
       if (data) setSearchResults(data);
@@ -659,7 +659,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
       is_cold_storage: product.is_cold_storage || false,
       substock_qty: currentQty,
       remarks: '',
-      trade_name: product.trade_name || '',
+      abbreviation: product.abbreviation || '',
       dosage_form_name: getDosageFormName(product.master_dosage_forms as any),
       is_manual_rate: false, // Default to auto input
     };
@@ -753,7 +753,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
           id, 
           drug_code, 
           generic_name, 
-          trade_name,
+          abbreviation,
           pack_size, 
           manual_monthly_usage, 
           is_psycho_narco, 
@@ -809,7 +809,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
             is_cold_storage: p.is_cold_storage || false,
             substock_qty: totalQty,
             remarks: '',
-            trade_name: p.trade_name || '',
+            abbreviation: p.abbreviation || '',
             dosage_form_name: getDosageFormName(p.master_dosage_forms as any),
           };
         }));
@@ -1056,7 +1056,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
           is_cold_storage: product.is_cold_storage || false,
           substock_qty: subQty,
           remarks: remarkVal,
-          trade_name: product.trade_name || '',
+          abbreviation: product.abbreviation || '',
         });
       } else {
         items.push({
@@ -1090,7 +1090,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
         // Retrieve active database products
         const { data: dbProducts, error: dbErr } = await supabase
           .from('products')
-          .select('id, drug_code, generic_name, trade_name, pack_size, manual_monthly_usage, is_psycho_narco, is_high_alert, is_cold_storage, master_units(name:unit_name)')
+          .select('id, drug_code, generic_name, abbreviation, pack_size, manual_monthly_usage, is_psycho_narco, is_high_alert, is_cold_storage, master_units(name:unit_name)')
           .eq('is_active', true);
 
         if (dbErr || !dbProducts) throw new Error('ไม่สามารถดึงข้อมูลเวชภัณฑ์จากระบบได้');
@@ -1311,7 +1311,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
                   is_cold_storage: product.is_cold_storage || false,
                   substock_qty: subQty,
                   remarks: remarkVal,
-                  trade_name: product.trade_name || '',
+                  abbreviation: product.abbreviation || '',
                 });
               } else {
                 itemsByDocNo[docNo].push({
@@ -1554,7 +1554,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
       is_cold_storage: item.is_cold_storage,
       substock_qty: item.substock_qty,
       remarks: item.remarks,
-      trade_name: item.trade_name,
+      abbreviation: item.abbreviation,
     }));
 
     if (isFirstEmpty) {
@@ -1785,7 +1785,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
           is_cold_storage: false,
           substock_qty: 0,
           remarks: '',
-          trade_name: '',
+          abbreviation: '',
         });
         setTimeout(() => {
           const newRowIndex = fields.length;

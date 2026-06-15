@@ -16,7 +16,7 @@ interface NegItem {
   warehouse_id: string;
   products: {
     generic_name: string;
-    trade_name?: string;
+    abbreviation?: string;
     drug_code?: string;
   } | null;
 }
@@ -117,7 +117,7 @@ export default function NegativeStockAnalysis() {
     const fetchNeg = async () => {
       const { data } = await supabase
         .from('stock_balances')
-        .select('id, product_id, lots!inner(id, lot_number, expiry_date), current_qty, warehouse_id, products(generic_name, trade_name, drug_code)')
+        .select('id, product_id, lots!inner(id, lot_number, expiry_date), current_qty, warehouse_id, products(generic_name, abbreviation, drug_code)')
         .lt('current_qty', 0);
       
       const mappedData = (data || []).map((b: any) => ({

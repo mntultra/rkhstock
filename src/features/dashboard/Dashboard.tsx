@@ -278,7 +278,7 @@ export default function Dashboard() {
         .from('borrowings')
         .select(`
           id, borrowed_qty, returned_qty, status, created_at,
-          products ( generic_name, trade_name ),
+          products ( generic_name, abbreviation ),
           officers ( full_name )
         `)
         .in('status', ['PENDING', 'PARTIAL']);

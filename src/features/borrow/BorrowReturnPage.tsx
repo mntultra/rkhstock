@@ -19,7 +19,7 @@ export default function BorrowReturnPage() {
         .from('borrowings')
         .select(`
           *,
-          products ( generic_name, trade_name ),
+          products ( generic_name, abbreviation ),
           officers ( full_name ),
           master_warehouses ( name )
         `)
@@ -50,7 +50,7 @@ export default function BorrowReturnPage() {
   const filteredBorrowings = borrowings.filter(b => {
     if (!search) return true;
     const s = search.toLowerCase();
-    const productName = (b.products?.generic_name || '') + ' ' + (b.products?.trade_name || '');
+    const productName = (b.products?.generic_name || '') + ' ' + (b.products?.abbreviation || '');
     const officerName = b.officers?.full_name || '';
     return productName.toLowerCase().includes(s) || officerName.toLowerCase().includes(s);
   });
@@ -158,7 +158,7 @@ export default function BorrowReturnPage() {
                       </td>
                       <td className="px-4 py-3 text-sm font-bold text-emerald-700">
                         {row.products?.generic_name}
-                        {row.products?.trade_name && <span className="block text-xs font-normal text-gray-500">{row.products.trade_name}</span>}
+                        {row.products?.abbreviation && <span className="block text-xs font-normal text-gray-500">{row.products.abbreviation}</span>}
                       </td>
                       <td className="px-4 py-3 text-sm font-bold text-gray-700 text-right">
                         {row.borrowed_qty}

@@ -31,7 +31,7 @@ export default function PrintLabelPage() {
       }
       const { data } = await supabase
         .from('products')
-        .select('id, generic_name, trade_name, drug_code')
+        .select('id, generic_name, abbreviation, drug_code')
         .ilike('generic_name', `%${searchQuery}%`)
         .eq('is_active', true)
         .limit(10);
