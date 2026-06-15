@@ -26,7 +26,8 @@ import {
   Globe,
   Keyboard,
   AlertTriangle,
-  FileX
+  FileX,
+  Clock
 } from 'lucide-react';
 
 // โครงสร้างหมวดหมู่เมนูบาร์หลักแบบ Static
@@ -44,7 +45,6 @@ const menuGroups = [
       { name: 'Requisition', thName: '(เบิกเวชภัณฑ์)', path: '/requisition/new', icon: <FileText size={18} /> },
       { name: 'Receive', thName: '(รับเวชภัณฑ์เข้า)', path: '/receive', icon: <PackagePlus size={18} /> },
       { name: 'Dispense', thName: '(จ่ายเวชภัณฑ์)', path: '/dispense', icon: <PackageMinus size={18} /> },
-      { name: 'Expired Supply Disposal', thName: '(ตัดจำหน่ายเวชภัณฑ์หมดอายุ)', path: '/expired', icon: <Trash size={18} /> },
     ]
   },
   {
@@ -52,6 +52,8 @@ const menuGroups = [
     items: [
       { name: 'Stock', thName: '(เวชภัณฑ์คงเหลือ)', path: '/stock', icon: <Boxes size={18} /> },
       { name: 'Stock Adjustment', thName: '(ตรวจนับ & ปรับยอดคลัง)', path: '/stock/adjust', icon: <ClipboardCheck size={18} /> },
+      { name: 'Expiry Tracking', thName: '(ติดตามยาใกล้หมดอายุ)', path: '/expiry-tracking', icon: <Clock size={18} /> },
+      { name: 'Expired & Disposal', thName: '(ตัดจำหน่ายยาหมดอายุ)', path: '/expired', icon: <Trash size={18} className="text-red-400" /> },
     ]
   },
   {

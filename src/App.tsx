@@ -13,6 +13,7 @@ import RequisitionHistory from './features/requisition/RequisitionHistory'
 import DispenseForm from './features/dispense/DispenseForm'
 import ReceiveForm from './features/receive/ReceiveForm'
 import ExpiredForm from './features/expired/ExpiredForm'
+import ExpiryTrackingPage from './features/expiry_tracking/ExpiryTrackingPage'
 import StockBalancePage from './features/stock/StockBalancePage'
 import StockAdjustmentPage from './features/stock/StockAdjustmentPage'
 import NotificationsPage from './features/notifications/NotificationsPage'
@@ -54,6 +55,7 @@ function App() {
           <Route path="/requisition/history" element={<RequisitionHistory />} />
           <Route path="/dispense" element={<DispenseForm />} />
           <Route path="/expired" element={<ExpiredForm />} />
+          <Route path="/expiry-tracking" element={<ExpiryTrackingPage />} />
           <Route path="/receive" element={<ReceiveForm />} />
           <Route path="/stock" element={<StockBalancePage />} />
           <Route path="/stock/adjust" element={<StockAdjustmentPage />} />

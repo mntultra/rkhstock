@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Settings, Building2, Calendar, Users, Package, FileType, CheckCircle, Search, Plus, Edit2, Trash2, X, Beaker, Briefcase, Pill, DivideSquare as DivideSquareIcon, LayoutGrid, UserCircle, ChevronDown, Check } from 'lucide-react';
+import { Settings, Building2, Calendar, Users, Package, FileType, CheckCircle, Search, Plus, Edit2, Trash2, X, Beaker, Briefcase, Pill, DivideSquare as DivideSquareIcon, LayoutGrid, UserCircle, ChevronDown, Check, AlertTriangle } from 'lucide-react';
 import { OrganizationInfo, } from '@/types';
 import { useOfficers } from '@/hooks/useOfficers';
 
@@ -290,7 +290,8 @@ function StockSettingsTab() {
       if (info?.id) {
         const { error } = await supabase.from('organization_info').update({
           requisition_avg_months: formData.requisition_avg_months,
-          safety_stock_months: formData.safety_stock_months
+          safety_stock_months: formData.safety_stock_months,
+          expiry_warning_months: formData.expiry_warning_months
         }).eq('id', info.id);
         if (error) throw error;
       } else {
@@ -393,6 +394,49 @@ function StockSettingsTab() {
                     <option value={3}>สำรอง 3 เดือน</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400 group-hover/select:text-purple-500 transition-colors">
+                    <ChevronDown size={18} strokeWidth={2.5} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Expiry Warning */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(239,68,68,0.08)] transition-all duration-300 relative overflow-hidden group">
+            <div className="absolute -top-6 -right-6 p-4 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity transform group-hover:scale-110 group-hover:rotate-6 duration-500">
+              <AlertTriangle size={120} className="text-red-500" />
+            </div>
+            
+            <div className="relative z-10 flex flex-col h-full">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2.5 bg-red-50/80 text-red-600 rounded-xl border border-red-100 shadow-sm shadow-red-100/50">
+                  <AlertTriangle size={22} strokeWidth={2.5} />
+                </div>
+                <h3 className="font-extrabold text-gray-900 text-lg tracking-tight">เตือนยาใกล้หมดอายุ (Expiry Warning)</h3>
+              </div>
+              
+              <p className="text-[13px] text-gray-500 mb-8 leading-relaxed flex-1">
+                กำหนดจำนวนเดือนแจ้งเตือนเวชภัณฑ์ใกล้หมดอายุล่วงหน้า เพื่อแสดงผลเตือนในระบบ <strong>ระบบจัดการยาใกล้หมดอายุ</strong>
+              </p>
+              
+              <div className="space-y-2 mt-auto">
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">
+                  ระยะเวลาแจ้งเตือนล่วงหน้า
+                </label>
+                <div className="relative group/select">
+                  <select
+                    disabled={!isEditing}
+                    value={formData.expiry_warning_months ?? 6}
+                    onChange={e => setFormData({ ...formData, expiry_warning_months: parseInt(e.target.value) })}
+                    className="appearance-none w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-red-500 focus:ring-4 focus:ring-red-500/15 disabled:bg-gray-50 disabled:text-gray-400 font-bold text-gray-800 text-sm cursor-pointer shadow-sm hover:shadow-md transition-all duration-200"
+                  >
+                    <option value={1}>ล่วงหน้า 1 เดือน</option>
+                    <option value={3}>ล่วงหน้า 3 เดือน</option>
+                    <option value={6}>ล่วงหน้า 6 เดือน (ค่าเริ่มต้น)</option>
+                    <option value={9}>ล่วงหน้า 9 เดือน</option>
+                    <option value={12}>ล่วงหน้า 12 เดือน</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400 group-hover/select:text-red-500 transition-colors">
                     <ChevronDown size={18} strokeWidth={2.5} />
                   </div>
                 </div>

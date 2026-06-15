@@ -97,6 +97,7 @@ export interface OrganizationInfo {
   fax?: string;
   requisition_avg_months?: number;
   safety_stock_months?: number;
+  expiry_warning_months?: number;
   updated_at?: string;
 }
 
@@ -162,3 +163,23 @@ export interface Borrowing {
   master_warehouses?: Warehouse;
 }
 
+// ---------------------------------------------------------
+// Expiry Tracking System (RKHEXP)
+// ---------------------------------------------------------
+export interface ManualExpiration {
+  id: string;
+  product_id: string;
+  lot_number?: string;
+  expiry_date: string;
+  qty?: number;
+  warehouse_id?: string;
+  manufacturer?: string;
+  remark?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+  
+  // Relations
+  products?: Product;
+  master_warehouses?: Warehouse;
+}

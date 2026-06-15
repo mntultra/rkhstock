@@ -57,3 +57,5 @@ Thumbs.db
 /*.tsbuildinfo
 vite.config.ts.timestamp-*
 .vscode/
+
+.vercel
