@@ -97,17 +97,25 @@ export default function ProductBarcodeModal({ productId, productName, onClose }:
             Html5QrcodeSupportedFormats.QR_CODE,
             Html5QrcodeSupportedFormats.DATA_MATRIX
           ],
-          verbose: false
+          verbose: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
         });
         scannerRef.current = scanner;
 
         await scanner.start(
           { facingMode: 'environment' },
           { 
-            fps: 25, 
+            fps: 15, 
+            aspectRatio: 1.777778,
             qrbox: (w: number, h: number) => {
               const size = Math.min(w, h);
               return { width: size * 0.85, height: size * 0.45 };
+            },
+            videoConstraints: {
+              focusMode: 'continuous',
+              advanced: [{ focusMode: 'continuous' }]
             }
           },
           (decodedText: string) => {
@@ -122,6 +130,16 @@ export default function ProductBarcodeModal({ productId, productName, onClose }:
           },
           () => {}
         );
+
+        // Apply continuous autofocus constraints once stream is active
+        setTimeout(() => {
+          if (scanner && scanner.isScanning) {
+            scanner.applyVideoConstraints({
+              focusMode: 'continuous',
+              advanced: [{ focusMode: 'continuous' }]
+            }).catch((err: any) => console.debug("Apply autofocus constraints failed:", err));
+          }
+        }, 1000);
       } catch (e) {
         console.error("Failed to start scanner:", e);
         setScanActive(false);

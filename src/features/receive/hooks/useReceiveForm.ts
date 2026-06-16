@@ -516,17 +516,25 @@ export function useReceiveForm() {
             Html5QrcodeSupportedFormats.QR_CODE,
             Html5QrcodeSupportedFormats.DATA_MATRIX
           ],
-          verbose: false
+          verbose: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
         });
         setScannerInstance(html5QrcodeScanner);
 
         await html5QrcodeScanner.start(
           { facingMode: "environment" }, // บังคับใช้งานกล้องหลัง
           {
-            fps: 20,
+            fps: 15,
+            aspectRatio: 1.777778,
             qrbox: (width, height) => {
               const size = Math.min(width, height) * 0.85;
               return { width: size, height: size * 0.45 }; // สี่เหลี่ยมผืนผ้าเหมาะสำหรับสแกนบาร์โค้ดยา
+            },
+            videoConstraints: {
+              focusMode: "continuous",
+              advanced: [{ focusMode: "continuous" }]
             }
           },
           (decodedText) => {
@@ -543,6 +551,17 @@ export function useReceiveForm() {
             // ดักจับและละเว้น error ชั่วขณะระหว่างแพนกล้อง
           }
         );
+
+        // Apply continuous autofocus constraints once stream is active
+        const activeScanner = html5QrcodeScanner;
+        setTimeout(() => {
+          if (activeScanner && activeScanner.isScanning) {
+            activeScanner.applyVideoConstraints({
+              focusMode: "continuous",
+              advanced: [{ focusMode: "continuous" }]
+            }).catch((err: any) => console.debug("Apply autofocus constraints failed:", err));
+          }
+        }, 1000);
       } catch (err: unknown) {
         console.error("Camera init failed:", err);
         setScannerError((err as Error).message || "ไม่สามารถเข้าถึงกล้องถ่ายรูปได้ กรุณาตรวจสอบการอนุญาตสิทธิ์ใช้งานกล้อง");

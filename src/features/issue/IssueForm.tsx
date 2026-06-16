@@ -534,12 +534,23 @@ export default function IssueForm() {
             Html5QrcodeSupportedFormats.QR_CODE,
             Html5QrcodeSupportedFormats.DATA_MATRIX
           ],
-          verbose: false
+          verbose: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
         });
         setScannerInstance(scanner);
         await scanner.start(
           { facingMode: "environment" },
-          { fps: 20, qrbox: (w, h) => ({ width: Math.min(w, h) * 0.85, height: Math.min(w, h) * 0.45 }) },
+          { 
+            fps: 15, 
+            aspectRatio: 1.777778,
+            qrbox: (w, h) => ({ width: Math.min(w, h) * 0.85, height: Math.min(w, h) * 0.45 }),
+            videoConstraints: {
+              focusMode: "continuous",
+              advanced: [{ focusMode: "continuous" }]
+            }
+          },
           (decodedText) => {
             playScanBeep();
             if (scanMode === 'PRODUCT') {
@@ -554,6 +565,16 @@ export default function IssueForm() {
           },
           () => {}
         );
+
+        // Apply continuous autofocus constraints once stream is active
+        setTimeout(() => {
+          if (scanner && scanner.isScanning) {
+            scanner.applyVideoConstraints({
+              focusMode: "continuous",
+              advanced: [{ focusMode: "continuous" }]
+            }).catch((err: any) => console.debug("Apply autofocus constraints failed:", err));
+          }
+        }, 1000);
       } catch (err: any) {
         console.error("Camera init failed:", err);
         setScannerError(err.message || "ไม่สามารถเข้าถึงกล้องถ่ายรูปได้");
