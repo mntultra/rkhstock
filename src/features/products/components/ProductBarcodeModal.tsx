@@ -116,7 +116,7 @@ export default function ProductBarcodeModal({ productId, productName, onClose }:
             videoConstraints: {
               focusMode: 'continuous',
               advanced: [{ focusMode: 'continuous' }]
-            }
+            } as any
           },
           (decodedText: string) => {
             const val = decodedText.trim();
@@ -137,7 +137,7 @@ export default function ProductBarcodeModal({ productId, productName, onClose }:
             scanner.applyVideoConstraints({
               focusMode: 'continuous',
               advanced: [{ focusMode: 'continuous' }]
-            }).catch((err: any) => console.debug("Apply autofocus constraints failed:", err));
+            } as any).catch((err: any) => console.debug("Apply autofocus constraints failed:", err));
           }
         }, 1000);
       } catch (e) {

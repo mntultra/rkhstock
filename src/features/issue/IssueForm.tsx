@@ -549,7 +549,7 @@ export default function IssueForm() {
             videoConstraints: {
               focusMode: "continuous",
               advanced: [{ focusMode: "continuous" }]
-            }
+            } as any
           },
           (decodedText) => {
             playScanBeep();
@@ -572,7 +572,7 @@ export default function IssueForm() {
             scanner.applyVideoConstraints({
               focusMode: "continuous",
               advanced: [{ focusMode: "continuous" }]
-            }).catch((err: any) => console.debug("Apply autofocus constraints failed:", err));
+            } as any).catch((err: any) => console.debug("Apply autofocus constraints failed:", err));
           }
         }, 1000);
       } catch (err: any) {
