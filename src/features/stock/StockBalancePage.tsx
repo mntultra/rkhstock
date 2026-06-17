@@ -189,6 +189,19 @@ export default function StockBalancePage() {
             border: none !important;
             box-shadow: none !important;
           }
+          /* ปลดล็อก layout สูงคงที่และระบบ scroll เพื่อให้หน้าเว็บพิมพ์ยาวลงมาได้เรื่อยๆ */
+          body, html, #root, .h-screen, [class*="h-screen"], [class*="overflow-"] {
+            height: auto !important;
+            overflow: visible !important;
+            position: relative !important;
+          }
+          main {
+            padding: 0 !important;
+            background: white !important;
+            overflow: visible !important;
+            height: auto !important;
+            display: block !important;
+          }
           .h-\\[calc\\(100vh-8rem\\)\\] {
             height: auto !important;
             overflow: visible !important;
@@ -198,8 +211,6 @@ export default function StockBalancePage() {
             height: auto !important;
           }
           body, html {
-            height: auto !important;
-            overflow: visible !important;
             font-size: 10pt !important;
           }
           h1 {
