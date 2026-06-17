@@ -233,8 +233,14 @@ export default function StockBalancePage() {
           th {
             font-weight: bold !important;
             background-color: #f9fafb !important;
+            border-top: 2px solid #666 !important;
+            border-bottom: 2px solid #666 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+          }
+          /* ซ่อนเครื่องหมาย Sort (ลูกศรจัดเรียง) ในหน้าพิมพ์ */
+          th svg {
+            display: none !important;
           }
           td, td * {
             font-weight: normal !important;
