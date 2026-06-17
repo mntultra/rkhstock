@@ -175,14 +175,32 @@ export default function StockBalancePage() {
           body, html {
             height: auto !important;
             overflow: visible !important;
+            font-size: 10pt !important;
+          }
+          h1 {
+            font-size: 14pt !important;
+            margin-bottom: 4px !important;
+          }
+          p {
+            font-size: 8.5pt !important;
           }
           table {
             border-collapse: collapse !important;
             width: 100% !important;
+            font-size: 8.5pt !important;
           }
           th, td {
             border: 1px solid #ddd !important;
-            padding: 10px !important;
+            padding: 6px 8px !important;
+          }
+          th {
+            font-weight: bold !important;
+            background-color: #f9fafb !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          td, td * {
+            font-weight: normal !important;
           }
           thead {
             display: table-header-group !important;
@@ -287,16 +305,18 @@ export default function StockBalancePage() {
               filteredBalances.map((item) => (
                 <tr key={item.id} className="hover:bg-blue-50/50 transition-colors group">
                   <td className="px-6 py-4">
-                    <div className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors">
-                      {item.products?.generic_name} 
-                      {item.products?.abbreviation && <span className="text-gray-500 font-medium text-xs ml-1.5">({item.products?.abbreviation})</span>}
+                    <div className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors flex items-center gap-2 flex-wrap">
+                      <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 text-xs">{item.products?.drug_code || '-'}</span>
+                      <span>{item.products?.generic_name}</span>
+                      {item.products?.abbreviation && <span className="text-gray-500 font-medium text-xs">({item.products?.abbreviation})</span>}
                     </div>
-                    <div className="text-xs text-gray-500 font-medium mt-1 flex items-center gap-1.5 flex-wrap">
-                      <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">{item.products?.drug_code || '-'}</span>
-                      {(item.products as any)?.is_cold_storage && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">COLD</span>}
-                      {(item.products as any)?.is_psycho_narco && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">Psycho</span>}
-                      {(item.products as any)?.is_high_alert && <span className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold animate-pulse">HAD</span>}
-                    </div>
+                    {((item.products as any)?.is_cold_storage || (item.products as any)?.is_psycho_narco || (item.products as any)?.is_high_alert) && (
+                      <div className="text-xs text-gray-500 font-medium mt-1 flex items-center gap-1.5 flex-wrap">
+                        {(item.products as any)?.is_cold_storage && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">COLD</span>}
+                        {(item.products as any)?.is_psycho_narco && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">Psycho</span>}
+                        {(item.products as any)?.is_high_alert && <span className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold animate-pulse">HAD</span>}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-700 font-medium">
                     {(() => {
@@ -305,7 +325,6 @@ export default function StockBalancePage() {
                       return (
                         <div>
                           <span>{df.name_en || df.name_th || '-'}</span>
-                          {df.abbreviation && <span className="text-gray-400 ml-1">({df.abbreviation})</span>}
                         </div>
                       );
                     })()}
