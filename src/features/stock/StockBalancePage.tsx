@@ -60,9 +60,30 @@ export default function StockBalancePage() {
       df?.abbreviation?.toLowerCase().includes(search.toLowerCase())
     );
   }).sort((a, b) => {
-    if (!sortConfig) return 0;
     const pA = a.products as any;
     const pB = b.products as any;
+
+    if (!sortConfig) {
+      // 1. รูปแบบยา
+      const dfA = pA?.master_dosage_forms?.name_en || pA?.master_dosage_forms?.name_th || '';
+      const dfB = pB?.master_dosage_forms?.name_en || pB?.master_dosage_forms?.name_th || '';
+      if (dfA !== dfB) return dfA.localeCompare(dfB, 'th');
+
+      // 2. COLD (Cold storage)
+      const coldA = pA?.is_cold_storage ? 1 : 0;
+      const coldB = pB?.is_cold_storage ? 1 : 0;
+      if (coldA !== coldB) return coldB - coldA;
+
+      // 3. HAD (High Alert Drug)
+      const hadA = pA?.is_high_alert ? 1 : 0;
+      const hadB = pB?.is_high_alert ? 1 : 0;
+      if (hadA !== hadB) return hadB - hadA;
+
+      // 5. ชื่อเวชภัณฑ์ (generic name)
+      const nameA = pA?.generic_name || '';
+      const nameB = pB?.generic_name || '';
+      return nameA.localeCompare(nameB, 'th');
+    }
     
     let valA = '';
     let valB = '';
@@ -152,6 +173,10 @@ export default function StockBalancePage() {
       {/* สไตล์ชีตครอบคลุมการจัดรูปแบบเวลาสั่งพิมพ์รายงาน PDF */}
       <style>{`
         @media print {
+          @page {
+            size: auto;
+            margin: 15mm 15mm 15mm 15mm !important;
+          }
           /* ซ่อน Sidebar layout, Header ของระบบ และปุ่มกดเวลาพิมพ์ */
           aside, header, .no-print, button {
             display: none !important;
@@ -188,9 +213,10 @@ export default function StockBalancePage() {
             border-collapse: collapse !important;
             width: 100% !important;
             font-size: 8.5pt !important;
+            border: 1px solid #bbb !important;
           }
           th, td {
-            border: 1px solid #ddd !important;
+            border: 1px solid #bbb !important;
             padding: 6px 8px !important;
           }
           th {
@@ -201,6 +227,38 @@ export default function StockBalancePage() {
           }
           td, td * {
             font-weight: normal !important;
+          }
+          tbody tr:nth-child(even) {
+            background-color: #f3f4f6 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .bg-blue-100 {
+            background-color: #dbeafe !important;
+            border: 1px solid #bfdbfe !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .text-blue-700 {
+            color: #1d4ed8 !important;
+          }
+          .bg-purple-100 {
+            background-color: #f3e8ff !important;
+            border: 1px solid #e9d5ff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .text-purple-700 {
+            color: #7e22ce !important;
+          }
+          .bg-rose-100 {
+            background-color: #ffe4e6 !important;
+            border: 1px solid #fecdd3 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .text-rose-700 {
+            color: #be123c !important;
           }
           thead {
             display: table-header-group !important;
@@ -215,7 +273,7 @@ export default function StockBalancePage() {
       <div className="p-6 border-b border-gray-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-gray-50/50">
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">สต๊อกคงเหลือ</h1>
-          <p className="text-sm text-gray-500 font-medium">ยอดคงเหลือเรียงตามวันหมดอายุ (FEFO) เพื่อการจัดการที่มีประสิทธิภาพ</p>
+          <p className="text-sm text-gray-500 font-medium">ยอดคงเหลือจัดเรียงตามรูปแบบยา สถานะควบคุมอุณหภูมิ (COLD) ความเสี่ยงสูง (HAD) และชื่อเวชภัณฑ์</p>
         </div>
         
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto no-print">
@@ -274,6 +332,7 @@ export default function StockBalancePage() {
                   <ArrowUpDown size={14} className={sortConfig?.key === 'dosage_form' ? 'text-emerald-500' : 'text-gray-300'} />
                 </div>
               </th>
+              <th className="px-6 py-4 text-xs font-extrabold text-gray-500 uppercase tracking-wider text-right border-b border-gray-100">ยอดคงเหลือ</th>
               <th className="px-6 py-4 text-xs font-extrabold text-gray-500 uppercase tracking-wider border-b border-gray-100">Lot Number</th>
               <th 
                 className="px-6 py-4 text-xs font-extrabold text-gray-500 uppercase tracking-wider border-b border-gray-100 cursor-pointer hover:bg-gray-50"
@@ -284,7 +343,6 @@ export default function StockBalancePage() {
                   <ArrowUpDown size={14} className={sortConfig?.key === 'expiry_date' ? 'text-emerald-500' : 'text-gray-300'} />
                 </div>
               </th>
-              <th className="px-6 py-4 text-xs font-extrabold text-gray-500 uppercase tracking-wider text-right border-b border-gray-100">ยอดคงเหลือ</th>
               <th className="px-6 py-4 text-xs font-extrabold text-gray-500 uppercase tracking-wider text-right border-b border-gray-100">ราคา/หน่วย</th>
               <th className="px-6 py-4 text-xs font-extrabold text-gray-500 uppercase tracking-wider text-right border-b border-gray-100">มูลค่ารวม</th>
             </tr>
@@ -303,20 +361,16 @@ export default function StockBalancePage() {
               </tr>
             ) : (
               filteredBalances.map((item) => (
-                <tr key={item.id} className="hover:bg-blue-50/50 transition-colors group">
+                <tr key={item.id} className="hover:bg-blue-50/50 transition-colors group even:bg-gray-100/70">
                   <td className="px-6 py-4">
                     <div className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors flex items-center gap-2 flex-wrap">
                       <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 text-xs">{item.products?.drug_code || '-'}</span>
                       <span>{item.products?.generic_name}</span>
                       {item.products?.abbreviation && <span className="text-gray-500 font-medium text-xs">({item.products?.abbreviation})</span>}
+                      {(item.products as any)?.is_cold_storage && <span className="text-[10px] bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">COLD</span>}
+                      {(item.products as any)?.is_psycho_narco && <span className="text-[10px] bg-purple-100 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">Psycho</span>}
+                      {(item.products as any)?.is_high_alert && <span className="text-[10px] bg-rose-100 text-rose-700 border border-rose-200 px-1.5 py-0.5 rounded font-bold animate-pulse whitespace-nowrap">HAD</span>}
                     </div>
-                    {((item.products as any)?.is_cold_storage || (item.products as any)?.is_psycho_narco || (item.products as any)?.is_high_alert) && (
-                      <div className="text-xs text-gray-500 font-medium mt-1 flex items-center gap-1.5 flex-wrap">
-                        {(item.products as any)?.is_cold_storage && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">COLD</span>}
-                        {(item.products as any)?.is_psycho_narco && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">Psycho</span>}
-                        {(item.products as any)?.is_high_alert && <span className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold animate-pulse">HAD</span>}
-                      </div>
-                    )}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-700 font-medium">
                     {(() => {
@@ -329,6 +383,11 @@ export default function StockBalancePage() {
                       );
                     })()}
                   </td>
+                  <td className="px-6 py-4 text-right">
+                    <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                      {item.current_qty} x {((item.products as any)?.pack_size || 1).toLocaleString('th-TH')} {(item.products as any)?.master_units?.name || 'ชิ้น'}
+                    </span>
+                  </td>
                   <td className="px-6 py-4">
                     <span className="font-mono text-sm text-gray-700">
                       {item.lot_number || '-'}
@@ -337,11 +396,6 @@ export default function StockBalancePage() {
                   <td className="px-6 py-4">
                     <span className={`text-sm font-medium ${getExpiryColor(item.expiry_date || '')}`}>
                       {item.expiry_date ? formatDate(item.expiry_date) : '-'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                      {item.current_qty} x {((item.products as any)?.pack_size || 1).toLocaleString('th-TH')} {(item.products as any)?.master_units?.name || 'ชิ้น'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
