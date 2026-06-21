@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Search, Plus, Edit2, Trash2, Pill, Activity, XOctagon, FileSpreadsheet, Upload, X, Download, Info, QrCode } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Pill, Activity, XOctagon, FileSpreadsheet, Upload, X, Download, Info, QrCode, Copy, AlertCircle } from 'lucide-react';
 import { DosageForm, ProductType, Unit } from '@/types';
 import * as XLSX from 'xlsx';
 import ProductBarcodeModal from './components/ProductBarcodeModal';
@@ -27,6 +27,9 @@ export default function ProductManagementPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isDuplicating, setIsDuplicating] = useState(false);
+  const [drugCodeError, setDrugCodeError] = useState<string>('');
+  const drugCodeInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     drug_code: '',
     generic_name: '',
@@ -445,6 +448,26 @@ export default function ProductManagementPage() {
     e.preventDefault();
     if (!formData.drug_code) return alert('กรุณาระบุรหัสเวชภัณฑ์');
 
+    // Real-time duplicate check before saving
+    if (drugCodeError) {
+      drugCodeInputRef.current?.focus();
+      return;
+    }
+
+    // Extra guard: check for drug_code conflict in DB for new records / duplicates
+    if (!editingId) {
+      const { data: existing } = await supabase
+        .from('products')
+        .select('id')
+        .eq('drug_code', formData.drug_code.trim())
+        .maybeSingle();
+      if (existing) {
+        setDrugCodeError('รหัสเวชภัณฑ์นี้มีอยู่ในระบบแล้ว กรุณาระบุรหัสใหม่');
+        drugCodeInputRef.current?.focus();
+        return;
+      }
+    }
+
     try {
       // Map empty string to null for foreign keys
       const payload = {
@@ -470,12 +493,41 @@ export default function ProductManagementPage() {
         }
       }
       setIsModalOpen(false);
+      setIsDuplicating(false);
+      setDrugCodeError('');
       setEditingId(null);
       setFormData({ drug_code: '', generic_name: '', abbreviation: '', dosage_form_id: '', pack_size: 1, unit_id: '', product_type_id: '', unit_price: 0, is_psycho_narco: false, is_high_alert: false, is_cold_storage: false, is_active: true, manual_monthly_usage: 0 });
       fetchProducts();
     } catch (err: any) {
       alert(err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
     }
+  };
+
+  const handleDuplicate = (product: any) => {
+    // Strip DB-managed fields and pre-fill form with the original product's data.
+    // drug_code is intentionally cleared so the user must enter a new unique code.
+    const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = product as any;
+    setFormData({
+      drug_code: '',
+      generic_name: rest.generic_name || '',
+      abbreviation: rest.abbreviation || '',
+      dosage_form_id: rest.dosage_form_id || '',
+      pack_size: rest.pack_size || 1,
+      unit_id: rest.unit_id || '',
+      product_type_id: rest.product_type_id || '',
+      unit_price: rest.unit_price || 0,
+      is_psycho_narco: rest.is_psycho_narco || false,
+      is_high_alert: rest.is_high_alert || false,
+      is_cold_storage: rest.is_cold_storage || false,
+      is_active: true,
+      manual_monthly_usage: rest.manual_monthly_usage || 0,
+    });
+    setEditingId(null);
+    setIsDuplicating(true);
+    setDrugCodeError('');
+    setIsModalOpen(true);
+    // Auto-focus the drug_code input after modal opens
+    setTimeout(() => drugCodeInputRef.current?.focus(), 100);
   };
 
   const handleEdit = (product: any) => {
@@ -506,11 +558,14 @@ export default function ProductManagementPage() {
   const handleDelete = async (id: string, genericName: string) => {
     if (!window.confirm(`ยืนยันการลบเวชภัณฑ์ "${genericName}" ออกจากระบบอย่างถาวรใช่หรือไม่?\n\n⚠️ การดำเนินการนี้ไม่สามารถยกเลิกได้`)) return;
     try {
-      // เคลียร์ FK ใน stock_audit_logs ก่อนลบ
-      await supabase.from('stock_audit_logs').update({ product_id: null }).eq('product_id', id);
       // ลบ product
       const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) throw error;
+      if (error) {
+        if (error.code === '23503') {
+          throw new Error('สินค้านี้ถูกใช้งานในระบบแล้ว (เช่น มีประวัติรับ/จ่าย หรือคงคลัง) จึงไม่สามารถลบได้ กรุณาใช้วิธีระงับการใช้งานแทน');
+        }
+        throw error;
+      }
       fetchProducts();
     } catch (err: any) {
       alert('ไม่สามารถลบเวชภัณฑ์ได้: ' + err.message);
@@ -685,6 +740,13 @@ export default function ProductManagementPage() {
                         <Edit2 size={18} />
                       </button>
                       <button
+                        onClick={() => handleDuplicate(item)}
+                        className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                        title="คัดลอกเป็นรายการใหม่ (Duplicate)"
+                      >
+                        <Copy size={18} />
+                      </button>
+                      <button
                         onClick={() => handleToggleActive(item.id, item.is_active ?? true)}
                         className={`p-2 rounded-lg transition-colors ${item.is_active ? 'text-orange-500 hover:bg-orange-50' : 'text-emerald-500 hover:bg-emerald-50'}`}
                         title={item.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน'}
@@ -709,17 +771,81 @@ export default function ProductManagementPage() {
 
       {/* Modal เพิ่ม/แก้ไขยา */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex justify-center items-start overflow-y-auto p-4 bg-gray-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-2xl p-6 sm:p-8 animate-fade-in-up my-auto relative">
-            <h2 className="text-2xl font-extrabold text-gray-900 mb-6">{editingId ? 'แก้ไขข้อมูลเวชภัณฑ์' : 'เพิ่มรายการเวชภัณฑ์ใหม่'}</h2>
+        <div
+          className="fixed inset-0 z-50 flex justify-center items-start overflow-y-auto p-4 bg-gray-900/60 backdrop-blur-sm"
+          onClick={() => { setIsModalOpen(false); setIsDuplicating(false); setDrugCodeError(''); }}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-xl w-full max-w-2xl p-6 sm:p-8 animate-fade-in-up my-auto relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-md ${
+                isDuplicating ? 'bg-teal-600' : 'bg-emerald-700'
+              }`}>
+                {isDuplicating ? <Copy size={20} /> : <Plus size={20} />}
+              </div>
+              <div>
+                <h2 className="text-2xl font-extrabold text-gray-900">
+                  {editingId ? 'แก้ไขข้อมูลเวชภัณฑ์' : isDuplicating ? 'คัดลอกเวชภัณฑ์เป็นรายการใหม่' : 'เพิ่มรายการเวชภัณฑ์ใหม่'}
+                </h2>
+                {isDuplicating && (
+                  <p className="text-xs text-teal-600 font-semibold uppercase tracking-widest mt-0.5">Duplicate Product</p>
+                )}
+              </div>
+              <button
+                type="button"
+                className="ml-auto p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                onClick={() => { setIsModalOpen(false); setIsDuplicating(false); setDrugCodeError(''); }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Duplicate mode banner */}
+            {isDuplicating && (
+              <div className="flex items-start gap-3 p-4 mb-4 bg-teal-50 border border-teal-200 rounded-2xl">
+                <Copy size={18} className="text-teal-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-teal-800">โหมดคัดลอกรายการ (Duplicate)</p>
+                  <p className="text-xs text-teal-600 mt-0.5">
+                    ข้อมูลทั้งหมดถูกคัดลอกจากรายการเดิมแล้ว &mdash; กรุณากรอก <strong>รหัสเวชภัณฑ์ใหม่</strong> และปรับ <strong>จำนวนหน่วยนับ</strong> ก่อนบันทึก
+                  </p>
+                </div>
+              </div>
+            )}
             <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
               <div className="col-span-1 md:col-span-2">
                 <label className="block text-sm font-bold text-gray-700 mb-1">รหัสเวชภัณฑ์ (Drug Code) <span className="text-red-500">*ห้ามซ้ำ</span></label>
                 <input
-                  type="text" required value={formData.drug_code} onChange={e => setFormData({ ...formData, drug_code: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 outline-none font-mono"
+                  ref={drugCodeInputRef}
+                  type="text"
+                  required
+                  value={formData.drug_code}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setFormData({ ...formData, drug_code: val });
+                    // Real-time conflict detection
+                    const trimmed = val.trim().toLowerCase();
+                    const conflict = trimmed && products.some(
+                      p => p.drug_code?.trim().toLowerCase() === trimmed && p.id !== editingId
+                    );
+                    setDrugCodeError(conflict ? 'รหัสเวชภัณฑ์นี้มีอยู่ในระบบแล้ว กรุณาระบุรหัสใหม่' : '');
+                  }}
+                  className={`w-full px-4 py-2.5 border rounded-xl focus:ring-4 outline-none font-mono transition-all ${
+                    drugCodeError
+                      ? 'bg-red-50 border-red-400 focus:ring-red-100 focus:border-red-400 text-red-700'
+                      : 'bg-gray-50 border-gray-200 focus:ring-emerald-100 focus:border-emerald-500'
+                  }`}
                 />
+                {drugCodeError && (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-red-600">
+                    <AlertCircle size={12} className="shrink-0" />
+                    {drugCodeError}
+                  </p>
+                )}
               </div>
 
               <div className="col-span-1 md:col-span-2">
@@ -834,11 +960,19 @@ export default function ProductManagementPage() {
               </div>
 
               <div className="col-span-1 md:col-span-2 pt-6 flex gap-3 border-t border-gray-100 mt-4">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => { setIsModalOpen(false); setIsDuplicating(false); setDrugCodeError(''); }}
+                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                >
                   ยกเลิก
                 </button>
-                <button type="submit" className="flex-1 px-4 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-md shadow-emerald-200">
-                  บันทึกข้อมูลเวชภัณฑ์
+                <button
+                  type="submit"
+                  disabled={!!drugCodeError}
+                  className="flex-1 px-4 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-md shadow-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDuplicating ? 'บันทึกเป็นรายการใหม่' : 'บันทึกข้อมูลเวชภัณฑ์'}
                 </button>
               </div>
             </form>

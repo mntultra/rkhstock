@@ -186,7 +186,12 @@ export default function OfficerManagementPage() {
 
       // ถ้าไม่มีการใช้งาน ให้ลบได้
       const { error } = await supabase.from('officers').delete().eq('id', id);
-      if (error) throw error;
+      if (error) {
+        if (error.code === '23503') {
+          throw new Error('ข้อมูลเจ้าหน้าที่รายนี้ถูกอ้างอิงในระบบแล้ว ไม่สามารถลบถาวรได้');
+        }
+        throw error;
+      }
 
       fetchOfficers();
     } catch (err: any) {

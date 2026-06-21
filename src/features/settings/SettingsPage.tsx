@@ -103,7 +103,12 @@ function SimpleCrudList({ title, tableName, icon, columns, searchFields, checkUs
 
     try {
       const { error } = await supabase.from(tableName).delete().eq('id', id);
-      if (error) throw error;
+      if (error) {
+        if (error.code === '23503') {
+          throw new Error('ข้อมูลนี้ถูกนำไปใช้งานในระบบแล้ว จึงไม่สามารถลบถาวรได้');
+        }
+        throw error;
+      }
       fetchItems();
     } catch (err: any) {
       alert('ลบข้อมูลไม่สำเร็จ: ' + err.message);
