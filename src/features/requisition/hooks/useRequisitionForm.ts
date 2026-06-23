@@ -353,6 +353,9 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
   });
 
   const watchItems = watch('items');
+  // Keep a ref so async callbacks always read the latest form state
+  const watchItemsRef = useRef(watchItems);
+  useEffect(() => { watchItemsRef.current = watchItems; }, [watchItems]);
 
   // ─── Auto-save to IndexedDB on every form change ─────────────────────────────
   const watchAll = watch();
@@ -682,48 +685,37 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
 
   const fetchAndSetUsageRate = async (index: number, productId: string, months: number, manualUsageVal?: number, curItemState?: any) => {
     if (!productId) return;
-    const { data } = await supabase.rpc('get_usage_rate', {
+    console.debug('[UsageRate] Calling RPC get_usage_rate', { productId, months, systemAgeInDays });
+    const { data, error } = await supabase.rpc('get_usage_rate', {
       p_product_id: productId,
       p_months: months,
     });
+    console.debug('[UsageRate] RPC result:', { data, error });
 
-    const currentItem = curItemState || watchItems[index];
-    const manualVal = manualUsageVal !== undefined ? manualUsageVal : (currentItem.manual_monthly_usage || 0);
-    const currentStock = currentItem.substock_qty || 0;
+    // After the async RPC call, always read the LATEST form state from ref
+    // to avoid stale closure bugs from the curItemState snapshot
+    const currentItem = watchItemsRef.current[index] || curItemState;
+    const manualVal = manualUsageVal !== undefined ? manualUsageVal : (currentItem?.manual_monthly_usage || 0);
+    const currentStock = currentItem?.substock_qty || 0;
 
-    if (data && data[0]) {
-      const result = data[0];
-      // If system age is less than requested months * 30 days, we MUST enforce manual rate
-      const forceManual = systemAgeInDays !== null && systemAgeInDays < (months * 30) ? true : currentItem.is_manual_rate;
-      const avgUsage = Math.ceil(result.avg_monthly_usage || 0);
-      const usageRate = forceManual ? manualVal : avgUsage;
-      const sugQty = Math.max(0, Math.ceil(usageRate * safetyStockMonths - currentStock));
+    const avgUsage = (data && data[0]) ? Math.ceil(data[0].avg_monthly_usage || 0) : 0;
+    // If systemAgeInDays is null (still loading) OR less than months*30 days,
+    // force manual rate so the auto badge never shows a misleading 0.
+    const forceManual = (systemAgeInDays === null || systemAgeInDays < (months * 30))
+      ? true
+      : (currentItem?.is_manual_rate ?? false);
+    const usageRate = forceManual ? manualVal : avgUsage;
+    const sugQty = Math.max(0, Math.ceil(usageRate * safetyStockMonths - currentStock));
+    console.debug('[UsageRate] Computed:', { avgUsage, manualVal, forceManual, usageRate, sugQty, systemAgeInDays, monthsThreshold: months * 30 });
 
-      update(index, {
-        ...currentItem,
-        months,
-        suggested_qty: sugQty,
-        avg_monthly_usage: avgUsage,
-        manual_monthly_usage: manualVal,
-        is_manual_rate: forceManual,
-        usage_rate: usageRate,
-        qty: forceManual ? Math.ceil(currentItem.qty || manualVal) : sugQty,
-      });
-    } else {
-      const forceManual = systemAgeInDays !== null && systemAgeInDays < (months * 30) ? true : currentItem.is_manual_rate;
-      const usageRate = manualVal;
-      const sugQty = Math.max(0, Math.ceil(usageRate * safetyStockMonths - currentStock));
-      update(index, {
-        ...currentItem,
-        months,
-        suggested_qty: sugQty,
-        avg_monthly_usage: 0,
-        manual_monthly_usage: manualVal,
-        is_manual_rate: forceManual,
-        usage_rate: usageRate,
-        qty: forceManual ? Math.ceil(currentItem.qty || manualVal) : sugQty,
-      });
-    }
+    // Use setValue for each field to avoid overwriting the entire row with a stale snapshot
+    setValue(`items.${index}.avg_monthly_usage`, avgUsage);
+    setValue(`items.${index}.manual_monthly_usage`, manualVal);
+    setValue(`items.${index}.is_manual_rate`, forceManual);
+    setValue(`items.${index}.usage_rate`, usageRate);
+    setValue(`items.${index}.suggested_qty`, sugQty);
+    setValue(`items.${index}.months`, months);
+    setValue(`items.${index}.qty`, forceManual ? Math.ceil((currentItem?.qty || 0) || manualVal) : sugQty);
   };
 
   const handleMonthsChange = (index: number, months: number) => {
