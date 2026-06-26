@@ -60,7 +60,7 @@ export default function MovementReports() {
         .from('stock_movements')
         .select(`
           id, doc_no, doc_date, movement_type, created_at, is_voided, voided_at, fiscal_year_id,
-          stock_movement_items(product_id, qty, products(generic_name))
+          stock_movement_items(product_id, qty, unit_price, products(generic_name))
         `)
         .eq('movement_type', reportType)
         .gte('doc_date', new Date(startDate).toISOString().split('T')[0])
@@ -131,6 +131,17 @@ export default function MovementReports() {
     if (reportType === 'ADJUST') return 'รายงานการปรับยอด/ตรวจนับ';
     return 'รายงานสรุปการเคลื่อนไหวคลัง';
   };
+
+  const grandTotalQty = movements
+    .filter(m => !m.is_voided)
+    .reduce((sum, m) => sum + m.stock_movement_items.reduce((s: number, item: any) => s + Math.abs(item.qty), 0), 0);
+
+  const grandTotalValue = movements
+    .filter(m => !m.is_voided)
+    .reduce((sum, m) => sum + m.stock_movement_items.reduce((s: number, item: any) => s + Math.abs(item.qty) * (item.unit_price || 0), 0), 0);
+
+  const formatBaht = (value: number) =>
+    value.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="max-w-full mx-auto space-y-6 animate-fade-in-up font-sans select-none">
@@ -241,6 +252,14 @@ export default function MovementReports() {
               ช่วงวันที่ {formatDate(startDate)} ถึง {formatDate(endDate)}
               {selectedFiscalYear !== 'ALL' && ` (ปีงบประมาณ ${fiscalYears.find(fy => fy.id === selectedFiscalYear)?.year_name})`}
             </p>
+            <div className="mt-3 flex flex-wrap justify-center gap-3">
+              <div className="inline-flex items-center gap-2 bg-blue-50 px-4 py-1.5 rounded-lg text-blue-800 font-extrabold text-sm print:border print:border-blue-200">
+                ยอดรวมปริมาณ: {grandTotalQty.toLocaleString()}
+              </div>
+              <div className="inline-flex items-center gap-2 bg-emerald-50 px-4 py-1.5 rounded-lg text-emerald-800 font-extrabold text-sm print:border print:border-emerald-200">
+                มูลค่ารวมทั้งหมด: {formatBaht(grandTotalValue)} บาท
+              </div>
+            </div>
           </div>
 
           <table className="w-full text-sm border-collapse border border-gray-300">
@@ -250,12 +269,14 @@ export default function MovementReports() {
                 <th className="border border-gray-300 p-2.5 w-40 text-center font-bold">เลขที่เอกสาร</th>
                 <th className="border border-gray-300 p-2.5 text-left font-bold">รายละเอียดรายการเวชภัณฑ์</th>
                 <th className="border border-gray-300 p-2.5 w-24 text-right font-bold">จำนวนรวม</th>
+                <th className="border border-gray-300 p-2.5 w-32 text-right font-bold">มูลค่ารวม (บาท)</th>
                 <th className="border border-gray-300 p-2.5 w-24 text-center font-bold print:hidden">จัดการ</th>
               </tr>
             </thead>
             <tbody>
               {movements.map((m) => {
                 const totalQty = m.stock_movement_items.reduce((sum: number, item: any) => sum + Math.abs(item.qty), 0);
+                const totalValue = m.stock_movement_items.reduce((sum: number, item: any) => sum + Math.abs(item.qty) * (item.unit_price || 0), 0);
                 
                 return (
                   <tr key={m.id} className="hover:bg-gray-50 print:hover:bg-white align-top transition-colors">
@@ -288,12 +309,18 @@ export default function MovementReports() {
                           <li key={i}>
                             {item.products?.generic_name || 'ไม่ระบุชื่อเวชภัณฑ์'} 
                             <span className="font-bold ml-1">({item.qty > 0 ? '+' : ''}{item.qty.toLocaleString()})</span>
+                            {item.unit_price > 0 && (
+                              <span className="text-gray-400 ml-1">@ {formatBaht(item.unit_price)} บ.</span>
+                            )}
                           </li>
                         ))}
                       </ul>
                     </td>
                     <td className={`border border-gray-300 p-2.5 text-right font-extrabold ${m.is_voided ? 'text-gray-400 line-through' : 'text-blue-700'}`}>
                       {totalQty.toLocaleString()}
+                    </td>
+                    <td className={`border border-gray-300 p-2.5 text-right font-extrabold ${m.is_voided ? 'text-gray-400 line-through' : 'text-emerald-700'}`}>
+                      {formatBaht(totalValue)}
                     </td>
                     <td className="border border-gray-300 p-2.5 text-center print:hidden">
                       {!m.is_voided && (
@@ -313,7 +340,10 @@ export default function MovementReports() {
               <tr className="bg-blue-50/10 font-bold print:bg-blue-50/10">
                 <td colSpan={3} className="border border-gray-300 p-2.5 text-right text-sm">ยอดรวมปริมาณเวชภัณฑ์ทั้งหมด:</td>
                 <td className="border border-gray-300 p-2.5 text-right text-sm text-blue-700">
-                  {movements.filter(m => !m.is_voided).reduce((sum, m) => sum + m.stock_movement_items.reduce((s: number, item: any) => s + Math.abs(item.qty), 0), 0).toLocaleString()}
+                  {grandTotalQty.toLocaleString()}
+                </td>
+                <td className="border border-gray-300 p-2.5 text-right text-sm text-emerald-700">
+                  {formatBaht(grandTotalValue)} บาท
                 </td>
                 <td className="border border-gray-300 p-2.5 text-center print:hidden"></td>
               </tr>

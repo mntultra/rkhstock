@@ -161,8 +161,8 @@ export default function Dashboard() {
         .select('*', { count: 'exact', head: true })
         .eq('movement_type', 'RECEIVE')
         .eq('is_voided', false);
-      if (startDate) queryReceive = queryReceive.gte('created_at', startDate);
-      if (endDate) queryReceive = queryReceive.lte('created_at', endDate);
+      if (startDate) queryReceive = queryReceive.gte('doc_date', startDate.split('T')[0]);
+      if (endDate) queryReceive = queryReceive.lte('doc_date', endDate.split('T')[0]);
       const { count: receiveCount } = await queryReceive;
 
       // 4. ดึงยอดจ่ายออกตามช่วงเวลา (ISSUE)
@@ -171,8 +171,8 @@ export default function Dashboard() {
         .select('*', { count: 'exact', head: true })
         .eq('movement_type', 'ISSUE')
         .eq('is_voided', false);
-      if (startDate) queryIssue = queryIssue.gte('created_at', startDate);
-      if (endDate) queryIssue = queryIssue.lte('created_at', endDate);
+      if (startDate) queryIssue = queryIssue.gte('doc_date', startDate.split('T')[0]);
+      if (endDate) queryIssue = queryIssue.lte('doc_date', endDate.split('T')[0]);
       const { count: issueCount } = await queryIssue;
 
       // 5. ดึงยอดตัดจำหน่ายตามช่วงเวลา (DISPOSE)
@@ -181,8 +181,8 @@ export default function Dashboard() {
         .select('*', { count: 'exact', head: true })
         .in('movement_type', ['DISPOSE', 'EXPIRED'])
         .eq('is_voided', false);
-      if (startDate) queryDispose = queryDispose.gte('created_at', startDate);
-      if (endDate) queryDispose = queryDispose.lte('created_at', endDate);
+      if (startDate) queryDispose = queryDispose.gte('doc_date', startDate.split('T')[0]);
+      if (endDate) queryDispose = queryDispose.lte('doc_date', endDate.split('T')[0]);
       const { count: disposeCount } = await queryDispose;
 
       // 6. คำนวณจำนวนชิ้นคงคลัง, มูลค่าสต๊อกรวม และจำนวนล็อตคลังทั้งหมด (Qty In Hand & Lots & Value)
@@ -518,6 +518,24 @@ export default function Dashboard() {
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (activePercentage / 100) * circumference;
 
+  // Dynamic label สำหรับหัวข้อ section ที่เปลี่ยนตาม filter
+  const filterLabel = (() => {
+    if (filterType === 'month') {
+      return `รอบเดือน${new Date().toLocaleString('th-TH', { month: 'long', year: 'numeric' })}`;
+    }
+    if (filterType === '30days') return '30 วันที่ผ่านมา';
+    if (filterType === 'fiscal') {
+      const fy = fiscalYears.find(f => f.id === selectedFiscalYear);
+      return fy ? `ปีงบประมาณ ${fy.year_name}` : 'ตามปีงบประมาณ';
+    }
+    if (filterType === 'custom') {
+      const s = customStartDate ? formatDate(customStartDate) : '?';
+      const e = customEndDate ? formatDate(customEndDate) : '?';
+      return `${s} – ${e}`;
+    }
+    return '';
+  })();
+
   return (
     <div className="space-y-6 select-none font-sans">
       
@@ -732,7 +750,7 @@ export default function Dashboard() {
               <div>
                 <h3 className="text-sm uppercase tracking-wider text-emerald-800 font-black mb-5 border-b border-emerald-100/80 pb-2.5 flex items-center gap-2">
                   <Activity className="w-4 h-4 text-emerald-600" />
-                  สถิติกิจกรรมงานคลังเวชภัณฑ์รอบเดือนนี้ (Pharmacy Monthly Activities)
+                  สถิติกิจกรรมงานคลังเวชภัณฑ์ ({filterLabel})
                 </h3>
                 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

@@ -275,7 +275,7 @@ export default function AppLayout() {
   // ทุกหมวดหมู่เมนูกางออกตลอดเวลาในแนวดิ่งตามความต้องการของผู้ใช้งาน
 
   return (
-    <div className="h-screen overflow-hidden bg-[#f8faf5] flex font-sans selection:bg-emerald-200">
+    <div className="h-screen overflow-hidden bg-[#f8faf5] flex font-sans selection:bg-emerald-200 print:h-auto print:overflow-visible print:bg-white print:block">
 
       {/* Sidebar - Desktop (ยืดหดแถบตามสถานะ isSidebarSlim) */}
       <aside className={`print:hidden hidden md:flex flex-col ${isSidebarSlim ? 'w-24' : 'w-80'
@@ -313,7 +313,7 @@ export default function AppLayout() {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative print:overflow-visible print:block">
 
         {/* Top Header */}
         <header className="print:hidden glass border-b border-white shadow-sm h-16 flex items-center justify-between px-4 sm:px-6 z-10 sticky top-0 shrink-0">
@@ -403,7 +403,7 @@ export default function AppLayout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 relative">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 relative print:overflow-visible print:p-0 print:block">
           <div className="max-w-full mx-auto animate-fade-in-up">
             <Outlet />
           </div>
