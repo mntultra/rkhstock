@@ -8,7 +8,8 @@ interface InventoryAnalysisItem {
   drug_code: string;
   generic_name: string;
   unit_name: string;
-  current_stock: number;
+  period_month: string;
+  ending_stock: number;
   unit_price: number;
   stock_value: number;
   total_issued: number;
@@ -20,10 +21,17 @@ type StatusFilter = 'ALL' | 'UNDERSTOCK' | 'OPTIMAL' | 'OVERSTOCK' | 'DEAD_STOCK
 
 export default function InventoryAnalysisReport() {
   const [items, setItems] = useState<InventoryAnalysisItem[]>([]);
-  const [selectedMonths, setSelectedMonths] = useState<3 | 6 | 9 | 12>(3);
+  const [selectedMonths, setSelectedMonths] = useState<1 | 3 | 5 | 9 | 12>(3);
+  const [selectedPeriod, setSelectedPeriod] = useState(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`; // YYYY-MM
+  });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof InventoryAnalysisItem; direction: 'asc' | 'desc' } | null>({
     key: 'generic_name',
     direction: 'asc'
@@ -33,18 +41,23 @@ export default function InventoryAnalysisReport() {
   useEffect(() => {
     const fetchAnalysisData = async () => {
       setIsLoading(true);
+      setError(null);
       try {
-        const { data, error } = await supabase
-          .rpc('get_inventory_analysis', { p_months: selectedMonths });
+        const { data, error: fetchErr } = await supabase
+          .rpc('get_monthly_inventory_analysis', { 
+            p_period_month: `${selectedPeriod}-01`,
+            p_usage_months: selectedMonths 
+          });
           
-        if (error) throw error;
+        if (fetchErr) throw fetchErr;
         if (data) {
           setItems(data.map((item: any) => ({
             product_id: item.product_id,
             drug_code: item.drug_code,
             generic_name: item.generic_name,
             unit_name: item.unit_name,
-            current_stock: Number(item.current_stock) || 0,
+            period_month: item.period_month,
+            ending_stock: Number(item.ending_stock) || 0,
             unit_price: Number(item.unit_price) || 0,
             stock_value: Number(item.stock_value) || 0,
             total_issued: Number(item.total_issued) || 0,
@@ -52,14 +65,15 @@ export default function InventoryAnalysisReport() {
             months_of_stock: Number(item.months_of_stock) || 0
           })));
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error fetching inventory analysis:', err);
+        setError(err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
       } finally {
         setIsLoading(false);
       }
     };
     fetchAnalysisData();
-  }, [selectedMonths]);
+  }, [selectedMonths, selectedPeriod]);
 
   // 2. คำนวณหาเกณฑ์ประเมินสำหรับแต่ละไอเท็มตามเกณฑ์ของผู้ใช้
   // - สำรองต่ำวิกฤต (Understock): MOS < 1.0 (และมียอดจ่ายออกมากกว่า 0)
@@ -198,7 +212,7 @@ export default function InventoryAnalysisReport() {
         'รหัสเวชภัณฑ์': item.drug_code || '-',
         'ชื่อเวชภัณฑ์': item.generic_name,
         'หน่วยนับ': item.unit_name,
-        'จำนวนคงเหลือ': item.current_stock,
+        'จำนวนคงเหลือ': item.ending_stock,
         'ราคาเฉลี่ย/หน่วย': item.unit_price,
         'มูลค่าคงคลังรวม (บาท)': item.stock_value,
         'ยอดจ่ายสะสม': item.total_issued,
@@ -222,7 +236,7 @@ export default function InventoryAnalysisReport() {
     });
     worksheet['!cols'] = maxLens;
 
-    XLSX.writeFile(workbook, `รายงานวิเคราะห์คลังและมูลค่า_${selectedMonths}เดือน_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `รายงานวิเคราะห์คลัง_${selectedPeriod}_${selectedMonths}เดือน_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   // 8. สั่งพิมพ์รายงาน
@@ -280,23 +294,38 @@ export default function InventoryAnalysisReport() {
 
       {/* Header และ แผงกรองข้อมูลหลัก */}
       <div className="p-6 border-b border-gray-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-5 bg-gray-50/50">
-        <div>
-          <h1 className="text-2xl font-extrabold text-emerald-950 tracking-tight flex items-center gap-2">
-            <Boxes size={24} className="text-emerald-600" />
-            รายงานอัตราสำรอง & มูลค่าคงคลัง
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-extrabold text-emerald-950 tracking-tight flex items-center gap-2 truncate">
+            <Boxes size={24} className="text-emerald-600 flex-shrink-0" />
+            <span className="truncate">รายงานอัตราสำรอง & มูลค่าคงคลัง</span>
           </h1>
-          <div className="text-sm text-gray-500 font-medium mt-1 flex flex-wrap gap-x-4 gap-y-1">
-            <span>วิเคราะห์อัตราคงคลังเหลือใช้ (Months of Stock) อ้างอิงตามอัตราการตัดจ่ายจริงสะสมรายเวชภัณฑ์</span>
-            <span className="text-emerald-800 font-extrabold bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100 print:bg-transparent print:border-none print:p-0">
-              มูลค่าคงคลังรวม: ฿{summaryStats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          <div className="text-sm text-gray-500 font-medium mt-2 flex flex-wrap gap-2 items-center">
+            <span className="bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md text-xs font-bold shrink-0">
+              ข้อมูล ณ สิ้นเดือน: {selectedPeriod}
             </span>
-            <span className="text-emerald-800 font-extrabold bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100 print:bg-transparent print:border-none print:p-0">
-              อัตราสำรองทั้งคลัง (MOS): {summaryStats.overallMOS.toFixed(2)} เดือน
+            <span className="hidden sm:inline-block shrink-0">วิเคราะห์ตามการตัดจ่ายจริง</span>
+            <span className="text-emerald-800 font-extrabold bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100 print:bg-transparent print:border-none print:p-0 shrink-0">
+              มูลค่ารวม: ฿{summaryStats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </span>
+            <span className="text-emerald-800 font-extrabold bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100 print:bg-transparent print:border-none print:p-0 shrink-0">
+              อัตราสำรองเฉลี่ย (MOS): {summaryStats.overallMOS.toFixed(2)} ด.
             </span>
           </div>
         </div>
 
         <div className="flex flex-col md:flex-row items-center gap-3 w-full xl:w-auto no-print">
+          {/* เลือกเดือนรายงาน */}
+          <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-2xl border border-gray-200 shadow-sm w-full md:w-auto">
+            <Calendar size={16} className="text-emerald-600" />
+            <span className="text-xs font-black text-gray-500 uppercase tracking-wider whitespace-nowrap">เดือนที่รายงาน:</span>
+            <input
+              type="month"
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="bg-transparent font-bold text-sm text-emerald-800 outline-none cursor-pointer"
+            />
+          </div>
+
           {/* เลือกช่วงเวลาคำนวณ */}
           <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-2xl border border-gray-200 shadow-sm w-full md:w-auto">
             <span className="text-xs font-black text-gray-500 uppercase tracking-wider whitespace-nowrap">รอบประเมิน:</span>
@@ -305,8 +334,9 @@ export default function InventoryAnalysisReport() {
               onChange={(e) => setSelectedMonths(Number(e.target.value) as any)}
               className="bg-transparent font-bold text-sm text-emerald-800 outline-none cursor-pointer pr-4"
             >
+              <option value={1}>1 เดือนย้อนหลัง</option>
               <option value={3}>3 เดือนย้อนหลัง</option>
-              <option value={6}>6 เดือนย้อนหลัง</option>
+              <option value={5}>5 เดือนย้อนหลัง</option>
               <option value={9}>9 เดือนย้อนหลัง</option>
               <option value={12}>12 เดือนย้อนหลัง</option>
             </select>
@@ -466,10 +496,10 @@ export default function InventoryAnalysisReport() {
                   <ArrowUpDown size={12} className={sortConfig?.key === 'generic_name' ? 'text-emerald-500' : 'text-gray-300'} />
                 </div>
               </th>
-              <th className="px-6 py-4 cursor-pointer text-right hover:bg-gray-100/50" onClick={() => handleSort('current_stock')}>
+              <th className="px-6 py-4 cursor-pointer text-right hover:bg-gray-100/50" onClick={() => handleSort('ending_stock')}>
                 <div className="flex items-center justify-end gap-1.5">
                   ยอดคงเหลือคลัง
-                  <ArrowUpDown size={12} className={sortConfig?.key === 'current_stock' ? 'text-emerald-500' : 'text-gray-300'} />
+                  <ArrowUpDown size={12} className={sortConfig?.key === 'ending_stock' ? 'text-emerald-500' : 'text-gray-300'} />
                 </div>
               </th>
               <th className="px-6 py-4 cursor-pointer text-right hover:bg-gray-100/50" onClick={() => handleSort('unit_price')}>
@@ -510,7 +540,17 @@ export default function InventoryAnalysisReport() {
               <tr>
                 <td colSpan={8} className="px-6 py-16 text-center">
                   <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-600 rounded-full animate-spin mx-auto mb-3" />
-                  <p className="text-gray-500 font-bold">กำลังรวบรวมประวัติความเคลื่อนไหวและประเมินอัตราสต๊อก...</p>
+                  <p className="text-gray-500 font-bold">กำลังประมวลผลข้อมูลคงคลังสิ้นเดือน...</p>
+                </td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td colSpan={8} className="px-6 py-16 text-center text-red-500">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <AlertTriangle size={36} className="text-red-400" />
+                    <span className="font-bold">ไม่สามารถประมวลผลข้อมูลได้</span>
+                    <span className="text-xs text-red-400 font-mono mt-1">{error}</span>
+                  </div>
                 </td>
               </tr>
             ) : filteredItems.length === 0 ? (
@@ -518,7 +558,7 @@ export default function InventoryAnalysisReport() {
                 <td colSpan={8} className="px-6 py-16 text-center text-gray-400 font-bold">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <AlertCircle size={36} className="text-gray-350" />
-                    <span>ไม่พบรายการที่ตรงกับเงื่อนไขการค้นหา</span>
+                    <span>ไม่พบรายการเวชภัณฑ์ที่ตรงกับเงื่อนไข</span>
                   </div>
                 </td>
               </tr>
@@ -539,7 +579,7 @@ export default function InventoryAnalysisReport() {
                     
                     {/* จำนวนคงคลัง */}
                     <td className="px-6 py-4 text-right font-bold text-gray-900 whitespace-nowrap">
-                      {item.current_stock.toLocaleString()}{' '}
+                      {item.ending_stock.toLocaleString()}{' '}
                       <span className="text-[10px] text-gray-400 font-medium">{item.unit_name}</span>
                     </td>
                     
