@@ -463,11 +463,10 @@ export default function ReceiveForm() {
                     <input 
                       ref={setCellRef(item.id, 'lot_number')}
                       type="text" 
-                      required 
                       value={item.lot_number} 
                       onChange={e => handleUpdateRow(item.id, 'lot_number', e.target.value)}
                       onKeyDown={e => handleCellKeyDown(e, item.id, 'lot_number')}
-                      placeholder="เช่น L24001"
+                      placeholder="ไม่ระบุได้"
                       className="w-full px-3 py-2.5 bg-white/70 backdrop-blur-sm border border-emerald-100 rounded-xl focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 outline-none transition-all font-mono text-sm shadow-sm"
                     />
                   </td>
@@ -479,6 +478,8 @@ export default function ReceiveForm() {
                       value={item.expiry_date} 
                       onChange={value => handleUpdateRow(item.id, 'expiry_date', value)}
                       onKeyDown={e => handleCellKeyDown(e as any, item.id, 'expiry_date')}
+                      required
+                      placeholder="2099-12-31"
                       className="w-full px-3 py-2.5 bg-white/70 backdrop-blur-sm border border-emerald-100 rounded-xl focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 outline-none transition-all text-sm shadow-sm"
                     />
                   </td>

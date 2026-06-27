@@ -22,6 +22,9 @@ interface ReceiveItem {
   drug_code?: string;
 }
 
+const normalizeReceiveLotNumber = (lotNumber?: string) => lotNumber?.trim() || '-';
+const normalizeReceiveExpiryDate = (expiryDate?: string) => expiryDate?.trim() || '2099-12-31';
+
 export interface MasterFiscalYear {
   id: string;
   year_name: string;
@@ -656,10 +659,10 @@ export function useReceiveForm() {
   // บันทึกใบรับเวชภัณฑ์เข้าคลัง
   const handleSaveVoucher = async () => {
     // กรองเฉพาะแถวที่มีการกรอกข้อมูลครบถ้วน
-    const validItems = items.filter(item => item.product && item.lot_number && item.expiry_date && item.qty !== '');
+    const validItems = items.filter(item => item.product && item.qty !== '' && Number(item.qty) > 0);
     
     if (validItems.length === 0) {
-      alert('กรุณากรอกข้อมูลเวชภัณฑ์, Lot, วันหมดอายุ, ราคา และจำนวน ให้ครบถ้วนอย่างน้อย 1 รายการ');
+      alert('กรุณากรอกข้อมูลเวชภัณฑ์และจำนวนรับให้ถูกต้องอย่างน้อย 1 รายการ');
       return;
     }
 
@@ -676,7 +679,10 @@ export function useReceiveForm() {
     const sixMonthsFromNow = new Date();
     sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
     
-    const nearExpiryItems = validItems.filter(item => new Date(item.expiry_date) < sixMonthsFromNow);
+    const nearExpiryItems = validItems.filter(item => {
+      const expiryDate = normalizeReceiveExpiryDate(item.expiry_date);
+      return expiryDate ? new Date(expiryDate) < sixMonthsFromNow : false;
+    });
     if (nearExpiryItems.length > 0) {
       const names = nearExpiryItems.map(i => i.product?.generic_name).join(', ');
       if (!confirm(`แจ้งเตือน! มีเวชภัณฑ์ที่ใกล้หมดอายุ (น้อยกว่า 6 เดือน): \n\n${names}\n\nคุณต้องการบันทึกการรับเข้าเวชภัณฑ์เหล่านี้ใช่หรือไม่?`)) {
@@ -721,11 +727,14 @@ export function useReceiveForm() {
       // 2. เตรียมรายการเวชภัณฑ์ทั้งหมดและสร้าง Lot ไปพร้อมๆ กัน
       const itemsToInsert = [];
       for (const item of validItems) {
+        const lotNumber = normalizeReceiveLotNumber(item.lot_number);
+        const expiryDate = normalizeReceiveExpiryDate(item.expiry_date);
+
         // ค้นหาหรือสร้าง Lot ก่อน
         const { data: lotId, error: lotError } = await supabase.rpc('find_or_create_lot', {
             p_product_id: item.product!.id,
-            p_lot_number: item.lot_number,
-            p_expiry_date: item.expiry_date,
+            p_lot_number: lotNumber,
+            p_expiry_date: expiryDate,
             p_unit_price: Number(item.unit_price) || 0
         });
         if (lotError) throw lotError;
@@ -745,8 +754,8 @@ export function useReceiveForm() {
         const { error: rpcError } = await supabase.rpc('add_stock_balance', {
           p_product_id: item.product!.id,
           p_warehouse_id: warehouseId,
-          p_lot_number: item.lot_number,
-          p_expiry_date: item.expiry_date,
+          p_lot_number: lotNumber,
+          p_expiry_date: expiryDate,
           p_qty: Number(item.qty),
           p_unit_price: Number(item.unit_price) || 0
         });

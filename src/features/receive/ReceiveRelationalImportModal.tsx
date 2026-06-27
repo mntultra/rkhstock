@@ -141,7 +141,6 @@ export default function ReceiveRelationalImportModal({ isOpen, onClose, onSucces
           const code = String(iRow.drug_code).trim();
           const pData = prodMap.get(code);
 
-          // ถ้าไม่มี Lot หรือ EXP ให้ใช้ค่า Default
           const lot = String(iRow.lot_number || '').trim();
           const exp = parseExcelDate(iRow.expiry_date);
 
@@ -174,7 +173,7 @@ export default function ReceiveRelationalImportModal({ isOpen, onClose, onSucces
           receiver: hRow.receiver ? findOff(hRow.receiver) : null,
           note: String(hRow.note || '').trim(),
           items: groupItems,
-          isValid: groupItems.length > 0 && groupItems.every(i => i.product && i.lot_number && i.expiry_date && i.qty > 0) && fiscalYearId !== null
+          isValid: groupItems.length > 0 && groupItems.every(i => i.product && i.qty > 0) && fiscalYearId !== null
         });
       }
 
