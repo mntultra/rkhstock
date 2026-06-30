@@ -1,5 +1,5 @@
 import { formatDate } from '@/utils/dateUtils';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Printer, ArrowLeft, Ban } from 'lucide-react';
@@ -30,6 +30,28 @@ function calculateThaiFiscalYear(dateString: string | null | undefined): string 
   const fiscalYear = month >= 10 ? beYear + 1 : beYear;
   
   return fiscalYear.toString();
+}
+
+function getRoleDisplay(role: string | null | undefined): string {
+  return role?.toUpperCase() === 'ADMIN' ? 'Admin' : 'User';
+}
+
+function InfoRow({ label, children, muted = false }: { label: string; children: ReactNode; muted?: boolean }) {
+  return (
+    <div className="grid grid-cols-[9.5rem_1fr] gap-x-3 items-start">
+      <span className="font-bold text-gray-600 leading-snug">{label}</span>
+      <span className={`font-semibold leading-snug min-w-0 break-words ${muted ? 'text-blue-700' : ''}`}>{children}</span>
+    </div>
+  );
+}
+
+function InfoSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="space-y-2.5">
+      <div className="text-[11px] font-black text-gray-500 border-b border-gray-200 pb-1">{title}</div>
+      <div className="space-y-2.5">{children}</div>
+    </div>
+  );
 }
 
 export default function PrintMovement() {
@@ -74,7 +96,13 @@ export default function PrintMovement() {
         if (itemsError) throw itemsError;
 
         // Fetch officer details separately to avoid schema cache relationship issues
-        const officerIds = [mov.actor_id, mov.created_by, mov.voided_by].filter(Boolean);
+        const officerIds = [
+          mov.actor_id,
+          mov.receiver,
+          mov.approver_main_warehouse,
+          mov.issuer_main_warehouse,
+          mov.voided_by
+        ].filter(Boolean);
         let officersMap: Record<string, string> = {};
 
         if (officerIds.length > 0) {
@@ -91,8 +119,10 @@ export default function PrintMovement() {
         }
 
         // Attach officer names back to movement object
-        mov.actor = { full_name: officersMap[mov.actor_id] || mov.receiver || mov.issuer_main_warehouse || '' };
-        mov.created_by_user = { full_name: officersMap[mov.created_by] || '' };
+        mov.actor = {
+          full_name: officersMap[mov.actor_id] || officersMap[mov.receiver] || mov.receiver || mov.issuer_main_warehouse || ''
+        };
+        mov.created_by_user = { full_name: '' };
         mov.voided_by_user = { full_name: officersMap[mov.voided_by] || '' };
 
         // Fetch creator user details from 'users' table and join with 'officers'
@@ -136,10 +166,10 @@ export default function PrintMovement() {
         if (mov.requisition_id) {
           const { data: reqData } = await supabase
             .from('requisitions')
-            .select('doc_no')
+            .select('doc_no, doc_date')
             .eq('id', mov.requisition_id)
             .single();
-          mov.requisition = { doc_no: reqData?.doc_no || '' };
+          mov.requisition = { doc_no: reqData?.doc_no || '', doc_date: reqData?.doc_date || '' };
         } else {
           mov.requisition = null;
         }
@@ -193,6 +223,8 @@ export default function PrintMovement() {
 
   const isReceive = movement.movement_type === 'RECEIVE';
   const isIssue = movement.movement_type === 'ISSUE';
+  const receiveTotalValue = items.reduce((sum, item) => sum + (Math.abs(item.qty) * (item.unit_price || 0)), 0);
+  const issueTotalValue = items.reduce((sum, item) => sum + (Math.abs(item.qty) * (item.unit_price || 0)), 0);
   const docTitle = isReceive ? 'ใบรับเวชภัณฑ์ (Receive Voucher)' :
     isIssue ? 'ใบจ่ายเวชภัณฑ์ (Issue Voucher)' :
       'เอกสารแสดงความเคลื่อนไหวคลัง (Movement Voucher)';
@@ -246,9 +278,7 @@ export default function PrintMovement() {
             </div>
             <div className="text-right space-y-1">
               <p className="text-xl font-bold font-sans">{docRef}</p>
-              {!isIssue && (
-                <p className="text-sm font-medium">วันที่ทำรายการ: {new Date(movement.created_at).toLocaleString('th-TH')}</p>
-              )}
+              <p className="text-sm font-medium">วันที่ทำรายการ: {new Date(movement.created_at).toLocaleString('th-TH')}</p>
               {movement.is_voided && (
                 <div className="inline-flex items-center gap-1 bg-red-100 text-red-800 px-2 py-1 rounded font-bold text-xs border border-red-300">
                   <Ban size={12} /> ถูกยกเลิกเมื่อ {formatDate(movement.voided_at)}
@@ -258,99 +288,101 @@ export default function PrintMovement() {
           </div>
 
           {/* Document Info */}
-          <div className="grid grid-cols-2 gap-x-8 gap-y-3 mb-8 text-sm p-5 border border-gray-200 rounded-xl bg-gray-50/50 print:bg-transparent">
-            {/* Left Column */}
-            <div className="space-y-3">
-              <div className="flex items-start">
-                <span className="w-32 font-bold text-gray-600 shrink-0">
-                  {isIssue ? 'วันที่จ่าย:' : 'วันที่บนเอกสาร:'}
-                </span>
-                <span className="font-semibold">{formatDate(movement.doc_date)}</span>
-              </div>
+          {isReceive ? (
+            <div className="grid grid-cols-2 gap-x-8 gap-y-5 mb-8 text-sm p-5 border border-gray-200 rounded-xl bg-gray-50/50 print:bg-transparent">
+              <InfoSection title="ข้อมูลเอกสาร">
+                <InfoRow label="วันที่รับ:">{formatDate(movement.doc_date)}</InfoRow>
+                <InfoRow label="หมายเหตุ:">{movement.note || movement.remarks || '-'}</InfoRow>
+              </InfoSection>
 
-              {isReceive && (
-                <div className="flex items-start">
-                  <span className="w-32 font-bold text-gray-600 shrink-0">คลังที่รับเข้า:</span>
-                  <span className="font-semibold">{movement.to_warehouse?.name || '-'}</span>
-                </div>
-              )}
+              <InfoSection title="ข้อมูลคลัง">
+                <InfoRow label="รับจาก:">{movement.from_warehouse?.name || movement.source_location || '-'}</InfoRow>
+                <InfoRow label="รับเข้าคลัง:">{movement.to_warehouse?.name || '-'}</InfoRow>
+              </InfoSection>
 
-              {isIssue && (
-                <>
-                  <div className="flex items-start">
-                    <span className="w-32 font-bold text-gray-600 shrink-0">คลังต้นทาง:</span>
-                    <span className="font-semibold text-gray-900">{movement.from_warehouse?.name || '-'}</span>
-                  </div>
-                  {movement.to_warehouse?.name && (
-                    <div className="flex items-start">
-                      <span className="w-32 font-bold text-gray-600 shrink-0">จ่ายไปที่:</span>
-                      <span className="font-semibold text-gray-900">{movement.to_warehouse.name}</span>
-                    </div>
-                  )}
-                </>
-              )}
+              <InfoSection title="ข้อมูลอ้างอิง">
+                <InfoRow label="เลขที่เอกสารอ้างอิง (ใบจ่าย/ใบนำส่ง):">
+                  {movement.reference_doc_no || '-'}
+                </InfoRow>
+                <InfoRow label="วันที่เอกสารอ้างอิง:">
+                  {movement.reference_doc_date ? formatDate(movement.reference_doc_date) : '-'}
+                </InfoRow>
+                <InfoRow label="เลขที่ใบขอเบิก (อ้างอิง):" muted>
+                  {movement.requisition?.doc_no || '-'}
+                </InfoRow>
+                <InfoRow label="วันที่ใบขอเบิก (อ้างอิง):">
+                  {movement.requisition?.doc_date ? formatDate(movement.requisition.doc_date) : '-'}
+                </InfoRow>
+              </InfoSection>
 
-              {movement.requisition_id && (
-                <div className="flex items-start">
-                  <span className="w-32 font-bold text-gray-600 shrink-0">จากใบขอเบิกเลขที่:</span>
-                  <span className="font-semibold text-blue-700">{movement.requisition?.doc_no || '-'}</span>
-                </div>
-              )}
-
-              {!isIssue && (
-                <>
-                  <div className="flex items-start">
-                    <span className="w-32 font-bold text-gray-600 shrink-0">เอกสารอ้างอิง:</span>
-                    <span className="font-semibold">{movement.reference_doc_no || '-'}</span>
-                  </div>
-                  {movement.reference_doc_date && (
-                    <div className="flex items-start">
-                      <span className="w-32 font-bold text-gray-600 shrink-0">วันที่เอกสารอ้างอิง:</span>
-                      <span className="font-semibold">{formatDate(movement.reference_doc_date)}</span>
-                    </div>
-                  )}
-                </>
-              )}
+              <InfoSection title="ผู้เกี่ยวข้อง">
+                <InfoRow label="ผู้รับเวชภัณฑ์:">{movement.actor?.full_name || '-'}</InfoRow>
+                <InfoRow label="ผู้บันทึกข้อมูล:">
+                  {movement.creatorName ? `${movement.creatorName} (${getRoleDisplay(movement.creatorRole)})` : '-'}
+                </InfoRow>
+              </InfoSection>
             </div>
-
-            {/* Right Column */}
-            <div className="space-y-3">
-              <div className="flex items-start">
-                <span className="w-32 font-bold text-gray-600 shrink-0">ปีงบประมาณ:</span>
-                <span className="font-semibold">{movement.fiscal_year || calculateThaiFiscalYear(movement.doc_date)}</span>
-              </div>
-
-              {!isIssue && (
+          ) : (
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3 mb-8 text-sm p-5 border border-gray-200 rounded-xl bg-gray-50/50 print:bg-transparent">
+              {/* Left Column */}
+              <div className="space-y-3">
                 <div className="flex items-start">
-                  <span className="w-32 font-bold text-gray-600 shrink-0">แหล่งที่มา/ไป:</span>
-                  <span className="font-semibold">{movement.source_location || '-'}</span>
-                </div>
-              )}
-
-              <div className="flex items-start">
-                <span className="w-32 font-bold text-gray-600 shrink-0">
-                  {isReceive ? 'ผู้รับเวชภัณฑ์:' : isIssue ? 'ผู้จ่ายเวชภัณฑ์:' : 'ผู้รับ/ผู้เบิก:'}
-                </span>
-                <span className="font-semibold">{movement.actor?.full_name || '-'}</span>
-              </div>
-
-              {isIssue && movement.creatorName && (
-                <div className="flex items-start">
-                  <span className="w-32 font-bold text-gray-600 shrink-0">ผู้บันทึกข้อมูล:</span>
-                  <span className="font-semibold">
-                    {movement.creatorName} ({movement.creatorRole === 'ADMIN' ? 'Admin' : 'User'})
+                  <span className="w-32 font-bold text-gray-600 shrink-0">
+                    {isIssue ? 'วันที่จ่าย:' : 'วันที่บนเอกสาร:'}
                   </span>
+                  <span className="font-semibold">{formatDate(movement.doc_date)}</span>
                 </div>
-              )}
 
-              {(movement.note || movement.remarks) && (
+                {isIssue && (
+                  <>
+                    <div className="flex items-start">
+                      <span className="w-32 font-bold text-gray-600 shrink-0">คลังต้นทาง:</span>
+                      <span className="font-semibold text-gray-900">{movement.from_warehouse?.name || '-'}</span>
+                    </div>
+                    {movement.to_warehouse?.name && (
+                      <div className="flex items-start">
+                        <span className="w-32 font-bold text-gray-600 shrink-0">จ่ายไปที่:</span>
+                        <span className="font-semibold text-gray-900">{movement.to_warehouse.name}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {movement.requisition_id && (
+                  <div className="flex items-start">
+                    <span className="w-32 font-bold text-gray-600 shrink-0">เลขที่ใบขอเบิก (อ้างอิง):</span>
+                    <span className="font-semibold text-blue-700">{movement.requisition?.doc_no || '-'}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column */}
+              <div className="space-y-3">
                 <div className="flex items-start">
-                  <span className="w-32 font-bold text-gray-600 shrink-0">หมายเหตุ:</span>
-                  <span className="font-semibold break-words">{movement.note || movement.remarks}</span>
+                  <span className="w-32 font-bold text-gray-600 shrink-0">
+                    {isIssue ? 'ผู้จ่ายเวชภัณฑ์:' : 'ผู้รับ/ผู้เบิก:'}
+                  </span>
+                  <span className="font-semibold">{movement.actor?.full_name || '-'}</span>
                 </div>
-              )}
+
+                {isIssue && movement.creatorName && (
+                  <div className="flex items-start">
+                    <span className="w-32 font-bold text-gray-600 shrink-0">ผู้บันทึกข้อมูล:</span>
+                    <span className="font-semibold">
+                      {movement.creatorName} ({getRoleDisplay(movement.creatorRole)})
+                    </span>
+                  </div>
+                )}
+
+                {(isIssue || movement.note || movement.remarks) && (
+                  <div className="flex items-start">
+                    <span className="w-32 font-bold text-gray-600 shrink-0">หมายเหตุ:</span>
+                    <span className="font-semibold break-words">{movement.note || movement.remarks || '-'}</span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Items Table */}
           <table className="w-full text-sm border-collapse mb-10">
@@ -393,17 +425,19 @@ export default function PrintMovement() {
                   รวมทั้งหมด {items.length} รายการ
                 </td>
                 <td className="py-4 px-1 text-right">
-                  {isReceive ? 'รวมจำนวนรับ:' : ''}
+                  {''}
                 </td>
                 <td className="py-4 px-1 text-right font-black text-lg">
-                  {isReceive ? items.reduce((sum, item) => sum + Math.abs(item.qty), 0).toLocaleString() : ''}
+                  {''}
                 </td>
                 <td colSpan={2} className="py-4 px-1 text-right font-bold">
-                  {isIssue ? 'รวมมูลค่าจ่าย:' : ''}
+                  {isReceive ? 'รวมมูลค่ารับ (บาท):' : isIssue ? 'รวมมูลค่าจ่าย:' : ''}
                 </td>
                 <td className="py-4 px-1 text-right font-black text-lg">
-                  {isIssue 
-                    ? items.reduce((sum, item) => sum + (Math.abs(item.qty) * (item.unit_price || 0)), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                  {isReceive
+                    ? receiveTotalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })
+                    : isIssue
+                    ? issueTotalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })
                     : ''
                   }
                 </td>
