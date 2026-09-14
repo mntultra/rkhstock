@@ -13,6 +13,7 @@ import {
   Package, 
   CheckCircle2, 
   AlertTriangle,
+  ClipboardList,
   Layers,
   Table as TableIcon,
   User,
@@ -65,6 +66,9 @@ export default function UnfulfilledReport() {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   
   const [items, setItems] = useState<UnfulfilledItem[]>([]);
+  const [totalAllReqItems, setTotalAllReqItems] = useState(0);
+  const [totalAllRequisitions, setTotalAllRequisitions] = useState(0);
+  const [totalAllReqQty, setTotalAllReqQty] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -198,6 +202,19 @@ export default function UnfulfilledReport() {
         }
       }
 
+      // คำนวณจำนวนรายการขอเบิกทั้งหมดในช่วงเวลา
+      let allItemsCount = 0;
+      let allReqQtySum = 0;
+      for (const req of reqList) {
+        for (const item of (req.items || [])) {
+          allItemsCount++;
+          allReqQtySum += (Number(item.qty) || 0);
+        }
+      }
+
+      setTotalAllRequisitions(reqList.length);
+      setTotalAllReqItems(allItemsCount);
+      setTotalAllReqQty(allReqQtySum);
       setItems(results);
     } catch (err: any) {
       console.error(err);
@@ -380,16 +397,28 @@ export default function UnfulfilledReport() {
         </div>
 
         {/* Summary Metric Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 print:grid-cols-4">
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-            <div className="flex items-center gap-2 text-slate-600 text-xs font-bold uppercase mb-1">
-              <Package size={16} className="text-slate-500" /> จำนวนรายการค้างจ่าย
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 mb-6 print:grid-cols-5">
+          <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl">
+            <div className="flex items-center gap-2 text-indigo-700 text-xs font-bold uppercase mb-1">
+              <ClipboardList size={16} className="text-indigo-500" /> รายการขอเบิกทั้งหมด
             </div>
-            <div className="text-2xl font-black text-slate-800">
-              {filteredItems.length.toLocaleString()} <span className="text-xs font-semibold text-slate-500">รายการ</span>
+            <div className="text-2xl font-black text-indigo-900">
+              {totalAllReqItems.toLocaleString()} <span className="text-xs font-semibold text-indigo-600">รายการ</span>
             </div>
-            <div className="text-[11px] font-bold text-slate-400 mt-0.5">
-              จากทั้งหมด {groupedRequisitions.length.toLocaleString()} ใบเบิก
+            <div className="text-[11px] font-bold text-indigo-400 mt-0.5">
+              จากทั้งหมด {totalAllRequisitions.toLocaleString()} ใบเบิก
+            </div>
+          </div>
+
+          <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl">
+            <div className="flex items-center gap-2 text-amber-800 text-xs font-bold uppercase mb-1">
+              <Package size={16} className="text-amber-600" /> รายการที่ค้างจ่าย
+            </div>
+            <div className="text-2xl font-black text-amber-900">
+              {filteredItems.length.toLocaleString()} <span className="text-xs font-semibold text-amber-700">รายการ</span>
+            </div>
+            <div className="text-[11px] font-bold text-amber-500 mt-0.5">
+              {groupedRequisitions.length.toLocaleString()} ใบเบิกที่ได้ไม่ครบ
             </div>
           </div>
 
@@ -401,7 +430,7 @@ export default function UnfulfilledReport() {
               {totalRequested.toLocaleString()} <span className="text-xs font-semibold text-blue-600">หน่วย</span>
             </div>
             <div className="text-[11px] font-bold text-blue-400 mt-0.5">
-              ยอดขอเบิกทั้งหมด
+              ยอดขอเบิก (รายการที่ค้าง)
             </div>
           </div>
 
@@ -417,7 +446,7 @@ export default function UnfulfilledReport() {
             </div>
           </div>
 
-          <div className="p-4 bg-red-50 border border-red-200 rounded-2xl">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-2xl col-span-2 sm:col-span-1">
             <div className="flex items-center gap-2 text-red-700 text-xs font-bold uppercase mb-1">
               <AlertTriangle size={16} className="text-red-500" /> รวมยอดค้างจ่าย / ขาด
             </div>
