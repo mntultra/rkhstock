@@ -382,30 +382,51 @@ export default function UnfulfilledReport() {
         {/* Summary Metric Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 print:grid-cols-4">
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-            <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase mb-1">
-              <Package size={16} /> รายการค้างจ่าย
+            <div className="flex items-center gap-2 text-slate-600 text-xs font-bold uppercase mb-1">
+              <Package size={16} className="text-slate-500" /> จำนวนรายการค้างจ่าย
             </div>
             <div className="text-2xl font-black text-slate-800">
-              {filteredItems.length.toLocaleString()} <span className="text-xs font-semibold text-slate-500">รายการ ({groupedRequisitions.length} ใบเบิก)</span>
+              {filteredItems.length.toLocaleString()} <span className="text-xs font-semibold text-slate-500">รายการ</span>
+            </div>
+            <div className="text-[11px] font-bold text-slate-400 mt-0.5">
+              จากทั้งหมด {groupedRequisitions.length.toLocaleString()} ใบเบิก
             </div>
           </div>
+
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl">
-            <div className="flex items-center gap-2 text-blue-600 text-xs font-bold uppercase mb-1">
-              <Calendar size={16} /> รวมจำนวนขอเบิก
+            <div className="flex items-center gap-2 text-blue-700 text-xs font-bold uppercase mb-1">
+              <Calendar size={16} className="text-blue-500" /> รวมจำนวนขอเบิก
             </div>
-            <div className="text-2xl font-black text-blue-700">{totalRequested.toLocaleString()}</div>
+            <div className="text-2xl font-black text-blue-700">
+              {totalRequested.toLocaleString()} <span className="text-xs font-semibold text-blue-600">หน่วย</span>
+            </div>
+            <div className="text-[11px] font-bold text-blue-400 mt-0.5">
+              ยอดขอเบิกทั้งหมด
+            </div>
           </div>
+
           <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
-            <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold uppercase mb-1">
-              <CheckCircle2 size={16} /> ได้รับจริง
+            <div className="flex items-center gap-2 text-emerald-700 text-xs font-bold uppercase mb-1">
+              <CheckCircle2 size={16} className="text-emerald-500" /> รวมจำนวนได้รับจริง
             </div>
-            <div className="text-2xl font-black text-emerald-700">{totalReceived.toLocaleString()}</div>
+            <div className="text-2xl font-black text-emerald-700">
+              {totalReceived.toLocaleString()} <span className="text-xs font-semibold text-emerald-600">หน่วย</span>
+            </div>
+            <div className="text-[11px] font-bold text-emerald-400 mt-0.5">
+              ยอดที่ตรวจรับเข้าคลังแล้ว
+            </div>
           </div>
+
           <div className="p-4 bg-red-50 border border-red-200 rounded-2xl">
-            <div className="flex items-center gap-2 text-red-600 text-xs font-bold uppercase mb-1">
-              <AlertTriangle size={16} /> ยอดค้างจ่าย / ขาด
+            <div className="flex items-center gap-2 text-red-700 text-xs font-bold uppercase mb-1">
+              <AlertTriangle size={16} className="text-red-500" /> รวมยอดค้างจ่าย / ขาด
             </div>
-            <div className="text-2xl font-black text-red-600">{totalMissing.toLocaleString()}</div>
+            <div className="text-2xl font-black text-red-600">
+              {totalMissing.toLocaleString()} <span className="text-xs font-semibold text-red-600">หน่วย</span>
+            </div>
+            <div className="text-[11px] font-bold text-red-400 mt-0.5">
+              ยอดที่ยังไม่ได้รับ / ขาดส่ง
+            </div>
           </div>
         </div>
 
