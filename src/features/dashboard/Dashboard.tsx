@@ -83,7 +83,7 @@ export default function Dashboard() {
     if (total === 0) return [];
 
     const segmentsData = [
-      { key: 'MANUAL', value: expiryStats.manualCount, color: '#d946ef', label: 'ชั้นจุดจ่าย' },
+      { key: 'MANUAL', value: expiryStats.manualCount, color: '#d946ef', label: 'Shelve track (manual)' },
       { key: 'SYSTEM', value: expiryStats.systemCount, color: '#3b82f6', label: 'สต๊อก' }
     ].filter(s => s.value > 0);
 
@@ -401,7 +401,8 @@ export default function Dashboard() {
 
       const { data: manualStock } = await supabase
         .from('manual_expirations')
-        .select('qty, expiry_date');
+        .select('qty, expiry_date, status')
+        .neq('status', 'DESTROYED');
 
       let total = 0;
       let expired = 0;
@@ -431,7 +432,7 @@ export default function Dashboard() {
       });
 
       manualStock?.forEach((item: any) => {
-        if (!item.expiry_date) return;
+        if (!item.expiry_date || item.status === 'DESTROYED' || item.qty === 0) return;
         const expDate = new Date(item.expiry_date);
         const diffTime = expDate.getTime() - todayDate.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -1105,7 +1106,7 @@ export default function Dashboard() {
 
                 <div className="flex justify-center gap-4 text-[10px] font-bold mt-1 flex-wrap text-gray-500">
                   <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded bg-fuchsia-500 inline-block"></span> ชั้นจุดจ่าย ({expiryStats.manualCount})
+                    <span className="w-2 h-2 rounded bg-fuchsia-500 inline-block"></span> Shelve track (manual) ({expiryStats.manualCount})
                   </span>
                   <span className="flex items-center gap-1">
                     <span className="w-2 h-2 rounded bg-blue-500 inline-block"></span> สต๊อก ({expiryStats.systemCount})

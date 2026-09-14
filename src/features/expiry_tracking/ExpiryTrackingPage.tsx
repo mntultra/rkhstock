@@ -206,7 +206,8 @@ export default function ExpiryTrackingPage() {
   const fetchDisposals = async () => {
     setIsDisposalLoading(true);
     try {
-      const { data, error } = await supabase
+      // 1. Fetch SYSTEM disposals from stock_movement_items where movement_type = 'DISPOSE'
+      const { data: sysData, error: sysError } = await supabase
         .from('stock_movement_items')
         .select(`
           id,
@@ -218,17 +219,37 @@ export default function ExpiryTrackingPage() {
           stock_movements!inner ( movement_type, from_warehouse_id, note )
         `)
         .eq('stock_movements.movement_type', 'DISPOSE')
+        .neq('stock_movements.note', 'MANUAL')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (sysError) throw sysError;
 
-      const processed = (data || []).map((item: any) => {
+      // 2. Fetch MANUAL disposals directly from manual_expirations where status = 'DESTROYED'
+      const { data: manData, error: manError } = await supabase
+        .from('manual_expirations')
+        .select(`
+          id,
+          qty,
+          destroyed_qty,
+          remark,
+          updated_at,
+          created_at,
+          lot_number,
+          warehouse_id,
+          products ( generic_name, drug_code, unit_price )
+        `)
+        .eq('status', 'DESTROYED')
+        .order('updated_at', { ascending: false });
+
+      if (manError) throw manError;
+
+      const processedSys: DisposalItem[] = (sysData || []).map((item: any) => {
         const qtyVal = Math.abs(item.qty || 0);
         const price = item.lots?.unit_price || item.products?.unit_price || 0;
-        const warehouseName = warehouses.find(w => w.id === item.stock_movements?.from_warehouse_id)?.name || 'ไม่ระบุคลัง';
+        const warehouseName = warehouses.find(w => w.id === item.stock_movements?.from_warehouse_id)?.name || 'คลังหลัก';
 
         return {
-          id: item.id,
+          id: `sys_disp_${item.id}`,
           qty: qtyVal,
           remark: item.remark || 'EXPIRED',
           created_at: item.created_at,
@@ -237,10 +258,42 @@ export default function ExpiryTrackingPage() {
           unit_price: price,
           lot_number: item.lots?.lot_number || '-',
           warehouse_name: warehouseName,
-          source: item.stock_movements?.note || 'SYSTEM'
+          source: 'SYSTEM' as const
         };
       });
-      setDisposalItems(processed);
+
+      const processedMan: DisposalItem[] = (manData || []).map((item: any) => {
+        const price = item.products?.unit_price || 0;
+        const warehouseName = warehouses.find(w => w.id === item.warehouse_id)?.name || 'ไม่ระบุสถานที่';
+
+        // Use destroyed_qty column directly; fallback to remark parsing for legacy data
+        let destroyedQty = item.destroyed_qty || 0;
+        if (destroyedQty === 0 && item.remark) {
+          const match = item.remark.match(/\((\d+)\s/);
+          if (match && match[1]) {
+            destroyedQty = parseInt(match[1], 10);
+          }
+        }
+
+        return {
+          id: `man_disp_${item.id}`,
+          qty: destroyedQty,
+          remark: item.remark || 'ทำลายแล้ว',
+          created_at: item.updated_at || item.created_at,
+          product_name: item.products?.generic_name || 'Unknown',
+          drug_code: item.products?.drug_code,
+          unit_price: price,
+          lot_number: item.lot_number || '-',
+          warehouse_name: warehouseName,
+          source: 'MANUAL' as const
+        };
+      });
+
+      const combined = [...processedSys, ...processedMan].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setDisposalItems(combined);
     } catch (err) {
       console.error('Error fetching disposals:', err);
     } finally {
@@ -473,7 +526,7 @@ export default function ExpiryTrackingPage() {
         'เวชภัณฑ์': item.generic_name,
         'ชื่อย่อ': item.abbreviation || '',
         'รหัสเวชภัณฑ์': item.drug_code || '',
-        'แหล่งข้อมูล': item.source === 'SYSTEM' ? 'คลังเวชภัณฑ์ (In-Stock)' : 'ชั้นจุดจ่าย (Manual Tracking)',
+        'แหล่งข้อมูล': item.source === 'SYSTEM' ? 'คลังเวชภัณฑ์ (In-Stock)' : 'ชั้นจุดจ่าย (Shelve Track)',
         'สถานที่': item.location,
         'เลขล็อต': item.lot_number,
         'วันหมดอายุ': item.expiry_date,
@@ -485,18 +538,41 @@ export default function ExpiryTrackingPage() {
       }));
     } else if (activeTab === 'DISPOSAL') {
       fileName = `RKH_Disposal_Loss_Report_${new Date().toISOString().split('T')[0]}`;
-      data = filteredDisposals.map(item => ({
+      const workbook = XLSX.utils.book_new();
+
+      const formatDisposalRow = (item: DisposalItem) => ({
         'วันที่ทำลาย': new Date(item.created_at).toLocaleDateString('th-TH'),
-        'แหล่งข้อมูล': item.source === 'SYSTEM' ? 'คลังเวชภัณฑ์ (In-Stock)' : 'ชั้นจุดจ่าย (Manual Tracking)',
-        'คลังสินค้า': item.warehouse_name,
+        'แหล่งข้อมูล': item.source === 'SYSTEM' ? 'คลังเวชภัณฑ์ (In-Stock)' : 'ชั้นจุดจ่าย (Shelve Track)',
+        'คลัง/สถานที่': item.warehouse_name,
         'เวชภัณฑ์': item.product_name,
         'รหัสเวชภัณฑ์': item.drug_code || '',
         'เลขล็อต': item.lot_number,
-        'สาเหตุ': item.remark === 'EXPIRED' ? 'หมดอายุ' : item.remark === 'DONATED' ? 'บริจาค' : 'เสื่อมสภาพ',
+        'สาเหตุ/รายละเอียด': item.remark === 'EXPIRED' ? 'หมดอายุ' : item.remark === 'DONATED' ? 'บริจาค' : item.remark === 'DAMAGED' ? 'เสื่อมสภาพ' : item.remark,
         'จำนวนตัด': item.qty,
         'ราคาต่อหน่วย': item.unit_price,
         'มูลค่าความสูญเสีย': item.qty * item.unit_price
-      }));
+      });
+
+      if (disposalSourceFilter === 'SYSTEM') {
+        const sysItems = disposalItems.filter(i => i.source === 'SYSTEM');
+        const ws = XLSX.utils.json_to_sheet(sysItems.map(formatDisposalRow));
+        XLSX.utils.book_append_sheet(workbook, ws, '1_ตัดทำลายจากคลัง (In-Stock)');
+      } else if (disposalSourceFilter === 'MANUAL') {
+        const manItems = disposalItems.filter(i => i.source === 'MANUAL');
+        const ws = XLSX.utils.json_to_sheet(manItems.map(formatDisposalRow));
+        XLSX.utils.book_append_sheet(workbook, ws, '2_ทำลายชั้นจุดจ่าย (Manual)');
+      } else {
+        // Export separate sheets for both reports
+        const sysItems = disposalItems.filter(i => i.source === 'SYSTEM');
+        const manItems = disposalItems.filter(i => i.source === 'MANUAL');
+        const wsSys = XLSX.utils.json_to_sheet(sysItems.map(formatDisposalRow));
+        const wsMan = XLSX.utils.json_to_sheet(manItems.map(formatDisposalRow));
+        XLSX.utils.book_append_sheet(workbook, wsSys, '1_ตัดทำลายจากคลัง (In-Stock)');
+        XLSX.utils.book_append_sheet(workbook, wsMan, '2_ทำลายชั้นจุดจ่าย (Manual)');
+      }
+
+      XLSX.writeFile(workbook, `${fileName}.xlsx`);
+      return;
     } else if (activeTab === 'DEAD_STOCK') {
       fileName = `RKH_Dead_Stock_Report_${new Date().toISOString().split('T')[0]}`;
       data = deadStockItems.map(item => ({
@@ -512,7 +588,7 @@ export default function ExpiryTrackingPage() {
 
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, activeTab === 'EXPIRY' ? 'Expiry_Report' : activeTab === 'DISPOSAL' ? 'Disposal_Report' : 'Dead_Stock_Report');
+    XLSX.utils.book_append_sheet(workbook, worksheet, activeTab === 'EXPIRY' ? 'Expiry_Report' : 'Dead_Stock_Report');
     XLSX.writeFile(workbook, `${fileName}.xlsx`);
   };
 
@@ -580,56 +656,56 @@ export default function ExpiryTrackingPage() {
       const userId = user?.id;
       if (!userId) throw new Error('ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่');
 
-      // 1. Create a stock movement header (DISPOSE)
-      const { data: movement, error: moveError } = await supabase
-        .from('stock_movements')
-        .insert({
-          movement_type: 'DISPOSE',
-          from_warehouse_id: destroyingItem.warehouse_id || null,
-          created_by: userId,
-          created_by_position: null,
-          note: destroyingItem.source
-        })
-        .select('id')
-        .single();
-
-      if (moveError) throw moveError;
-
-      // Calculate unit price and pack size
-      const unitPrice = destroyingItem.unit_price || 0;
-      const packSize = destroyingItem.pack_size || 1;
-
-      // Resolve lot_id if missing (e.g. for MANUAL source items)
-      let lotId = destroyingItem.lot_id || null;
-      if (!lotId && destroyingItem.product_id) {
-        const { data: createdLotId, error: lotError } = await supabase.rpc('find_or_create_lot', {
-          p_product_id: destroyingItem.product_id,
-          p_lot_number: destroyingItem.lot_number || '-',
-          p_expiry_date: destroyingItem.expiry_date || null,
-          p_unit_price: unitPrice
-        });
-        if (lotError) throw lotError;
-        lotId = createdLotId;
-      }
-
-      // 2. Insert transaction item into stock_movement_items
-      const { error: itemError } = await supabase
-        .from('stock_movement_items')
-        .insert({
-          movement_id: movement.id,
-          product_id: destroyingItem.product_id,
-          lot_id: lotId,
-          qty: -Number(destroyQty),
-          pack_size: packSize,
-          unit_name: destroyingItem.unit_name || 'ชิ้น',
-          remark: destroyReason,
-          unit_price: unitPrice
-        });
-
-      if (itemError) throw itemError;
-
-      // 3. For SYSTEM items, deduct from stock_balances using RPC
       if (destroyingItem.source === 'SYSTEM') {
+        // 1. Create a stock movement header (DISPOSE) for warehouse inventory
+        const { data: movement, error: moveError } = await supabase
+          .from('stock_movements')
+          .insert({
+            movement_type: 'DISPOSE',
+            from_warehouse_id: destroyingItem.warehouse_id || null,
+            created_by: userId,
+            created_by_position: null,
+            note: 'SYSTEM'
+          })
+          .select('id')
+          .single();
+
+        if (moveError) throw moveError;
+
+        // Calculate unit price and pack size
+        const unitPrice = destroyingItem.unit_price || 0;
+        const packSize = destroyingItem.pack_size || 1;
+
+        // Resolve lot_id
+        let lotId = destroyingItem.lot_id || null;
+        if (!lotId && destroyingItem.product_id) {
+          const { data: createdLotId, error: lotError } = await supabase.rpc('find_or_create_lot', {
+            p_product_id: destroyingItem.product_id,
+            p_lot_number: destroyingItem.lot_number || '-',
+            p_expiry_date: destroyingItem.expiry_date || null,
+            p_unit_price: unitPrice
+          });
+          if (lotError) throw lotError;
+          lotId = createdLotId;
+        }
+
+        // 2. Insert transaction item into stock_movement_items
+        const { error: itemError } = await supabase
+          .from('stock_movement_items')
+          .insert({
+            movement_id: movement.id,
+            product_id: destroyingItem.product_id,
+            lot_id: lotId,
+            qty: -Number(destroyQty),
+            pack_size: packSize,
+            unit_name: destroyingItem.unit_name || 'ชิ้น',
+            remark: destroyReason,
+            unit_price: unitPrice
+          });
+
+        if (itemError) throw itemError;
+
+        // 3. Deduct from stock_balances using RPC
         const { error: deductError } = await supabase.rpc('deduct_stock_balance', {
           p_product_id: destroyingItem.product_id,
           p_warehouse_id: destroyingItem.warehouse_id,
@@ -640,40 +716,31 @@ export default function ExpiryTrackingPage() {
 
         if (deductError) throw deductError;
 
-        // Create a manual_expirations record with Qty = 0 and status = 'DESTROYED'
-        // so that it shows up as "Destroyed" and "0" in the tracking list
-        const { error: manInsertError } = await supabase
-          .from('manual_expirations')
-          .insert({
-            product_id: destroyingItem.product_id,
-            lot_number: destroyingItem.lot_number,
-            expiry_date: destroyingItem.expiry_date,
-            qty: 0,
-            warehouse_id: destroyingItem.warehouse_id,
-            manufacturer: destroyingItem.manufacturer || null,
-            remark: `ระบบทำลายยาคลัง: ${destroyReason}`,
-            status: 'DESTROYED',
-            created_by: userId
-          });
-          
-        if (manInsertError) console.error('Error creating manual tracking placeholder:', manInsertError);
+        alert('บันทึกตัดทำลายเวชภัณฑ์จากคลังสินค้าสำเร็จ (ระบบได้หักออกจากยอดสต็อกคงคลังเรียบร้อย)');
       } else {
-        // For MANUAL items, update the manual_expirations table
-        // We set status = 'DESTROYED' and qty = 0
+        // For MANUAL items: DO NOT insert into stock_movements / stock_movement_items, DO NOT deduct stock_balances
+        // Update the manual_expirations table directly
         const realId = destroyingItem.id.replace('man_', '');
+        const reasonText = destroyReason
+          ? `ทำลายแล้ว (${destroyQty} ${destroyingItem.unit_name || 'ชิ้น'}): ${destroyReason}`
+          : `ทำลายแล้ว (${destroyQty} ${destroyingItem.unit_name || 'ชิ้น'})`;
+
         const { error: manUpdateError } = await supabase
           .from('manual_expirations')
           .update({
             status: 'DESTROYED',
+            destroyed_qty: Number(destroyQty),
             qty: 0,
-            remark: `ทำลายแล้ว: ${destroyReason}`
+            remark: reasonText,
+            updated_at: new Date().toISOString()
           })
           .eq('id', realId);
 
         if (manUpdateError) throw manUpdateError;
+
+        alert('บันทึกการทำลายยาจากชั้นจุดจ่ายสำเร็จ (ไม่กระทบยอดสต็อกคงคลังในระบบ)');
       }
 
-      alert('ทำลายเวชภัณฑ์สำเร็จ ระบบได้สร้างเอกสารและหักออกจากสต๊อกเรียบร้อยแล้ว');
       setDestroyingItem(null);
       
       // Refresh data
@@ -1187,17 +1254,43 @@ export default function ExpiryTrackingPage() {
         <div className="space-y-6">
           {/* Disposal Filter Bar */}
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center justify-between print:hidden animate-fade-in-up">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-gray-500">กรองตามแหล่งข้อมูล:</span>
-              <select
-                value={disposalSourceFilter}
-                onChange={(e) => setDisposalSourceFilter(e.target.value as any)}
-                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-red-400 text-sm font-bold text-gray-700 cursor-pointer shadow-sm"
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-bold text-gray-500 mr-2">เลือกชุดรายงาน:</span>
+              <button
+                type="button"
+                onClick={() => setDisposalSourceFilter('SYSTEM')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                  disposalSourceFilter === 'SYSTEM'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-200 scale-105'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
               >
-                <option value="ALL">แหล่งข้อมูลทั้งหมด (In-Stock & Manual)</option>
-                <option value="SYSTEM">เฉพาะในคลังเวชภัณฑ์ (In-Stock)</option>
-                <option value="MANUAL">เฉพาะบนชั้นจุดจ่าย (Manual Tracking)</option>
-              </select>
+                <span className={`w-2.5 h-2.5 rounded-full ${disposalSourceFilter === 'SYSTEM' ? 'bg-blue-200 animate-pulse' : 'bg-blue-500'}`}></span>
+                1. รายงานตัดทำลายจากคลังเวชภัณฑ์ (In-Stock)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisposalSourceFilter('MANUAL')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                  disposalSourceFilter === 'MANUAL'
+                    ? 'bg-purple-600 text-white shadow-md shadow-purple-200 scale-105'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <span className={`w-2.5 h-2.5 rounded-full ${disposalSourceFilter === 'MANUAL' ? 'bg-purple-200 animate-pulse' : 'bg-purple-500'}`}></span>
+                2. รายงานทำลายยาชั้นจุดจ่าย (Shelve Track)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisposalSourceFilter('ALL')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  disposalSourceFilter === 'ALL'
+                    ? 'bg-gray-800 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                ดูรายงานรวมทุกแหล่งข้อมูล (All)
+              </button>
             </div>
           </div>
 
@@ -1483,13 +1576,21 @@ export default function ExpiryTrackingPage() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up my-auto max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="bg-gradient-to-r from-red-600 to-rose-600 px-6 py-4 flex justify-between items-center text-white shrink-0">
+            <div className={`px-6 py-4 flex justify-between items-center text-white shrink-0 ${
+              destroyingItem.source === 'SYSTEM'
+                ? 'bg-gradient-to-r from-red-600 to-rose-600'
+                : 'bg-gradient-to-r from-purple-600 to-indigo-600'
+            }`}>
               <div>
                 <h2 className="text-lg font-extrabold flex items-center gap-2">
                   <Trash size={20} />
-                  ยืนยันการทำลายเวชภัณฑ์จริง
+                  {destroyingItem.source === 'SYSTEM' ? 'ยืนยันการทำลายเวชภัณฑ์ในคลัง' : 'ยืนยันการทำลายยาชั้นจุดจ่าย'}
                 </h2>
-                <p className="text-red-100 text-xs mt-0.5">ระบบจะหักยอดคงคลังและสร้างประวัติความสูญเสีย</p>
+                <p className="text-white/80 text-xs mt-0.5">
+                  {destroyingItem.source === 'SYSTEM'
+                    ? 'ระบบจะหักยอดคงคลังในระบบและสร้างประวัติความสูญเสีย'
+                    : 'รายการติดตามบนชั้นจุดจ่าย (ไม่หักยอดสต็อกคงคลังในระบบ)'}
+                </p>
               </div>
               <button 
                 onClick={() => setDestroyingItem(null)} 
@@ -1535,7 +1636,7 @@ export default function ExpiryTrackingPage() {
                     disabled={isDestroySubmitting}
                   />
                   <span className="text-[10px] text-gray-400 font-medium mt-1 block">
-                    คงเหลือในระบบ: {(destroyingItem.qty || 0).toLocaleString()} {destroyingItem.unit_name}
+                    {destroyingItem.source === 'SYSTEM' ? 'คงเหลือในสต็อกคลัง:' : 'คงเหลือบนชั้นติดตาม:'} {(destroyingItem.qty || 0).toLocaleString()} {destroyingItem.unit_name}
                   </span>
                 </div>
 
@@ -1555,13 +1656,22 @@ export default function ExpiryTrackingPage() {
                 </div>
               </div>
 
-              {/* Warning box */}
-              <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex gap-3 text-xs leading-relaxed text-red-800">
-                <AlertTriangle className="w-5 h-5 shrink-0 text-red-500 mt-0.5" />
-                <span>
-                  <strong>โปรดระวัง:</strong> การดำเนินการนี้จะทำการหักสต๊อกเวชภัณฑ์ออกและบันทึกประวัติการสูญเสียในระบบแบบถาวร ไม่สามารถยกเลิกรายการได้
-                </span>
-              </div>
+              {/* Warning/Info box */}
+              {destroyingItem.source === 'SYSTEM' ? (
+                <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex gap-3 text-xs leading-relaxed text-red-800">
+                  <AlertTriangle className="w-5 h-5 shrink-0 text-red-500 mt-0.5" />
+                  <span>
+                    <strong>โปรดระวัง:</strong> การดำเนินการนี้จะทำการหักสต๊อกเวชภัณฑ์ออกจากคลัง และบันทึกประวัติการสูญเสียในระบบแบบถาวร ไม่สามารถยกเลิกรายการได้
+                  </span>
+                </div>
+              ) : (
+                <div className="bg-purple-50 border border-purple-100 p-4 rounded-xl flex gap-3 text-xs leading-relaxed text-purple-800">
+                  <CheckCircle className="w-5 h-5 shrink-0 text-purple-600 mt-0.5" />
+                  <span>
+                    <strong>ข้อมูลประกอบ:</strong> รายการนี้เป็นยาที่เบิกไปติดตามบนชั้นจุดจ่าย การบันทึกทำลายจะอัปเดตสถานะของรายการนี้เป็น "ทำลายแล้ว" โดย <strong>ไม่มีผลกระทบต่อยอดสต็อกคงคลังในระบบ</strong>
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Footer */}

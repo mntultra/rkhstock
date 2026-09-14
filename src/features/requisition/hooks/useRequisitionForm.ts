@@ -1603,6 +1603,7 @@ export function useRequisitionForm(id: string | undefined, officers: OfficerInfo
           requisition_id: reqData.id,
           product_id: item.product_id,
           qty: item.qty,
+          received_qty: item.qty, // ใบเบิกประวัติศาสตร์ที่นำเข้าและมีสถานะ COMPLETED จะถือว่าได้รับครบตามจำนวน
           pack_size: item.pack_size,
           unit_name: item.unit_name,
           created_by: userId,

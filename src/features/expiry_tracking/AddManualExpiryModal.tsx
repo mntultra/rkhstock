@@ -143,10 +143,10 @@ export default function AddManualExpiryModal({ onClose, onSuccess, itemToEdit }:
           <div>
             <h2 className="text-xl font-extrabold flex items-center gap-2">
               <AlertCircle size={22} />
-              {itemToEdit ? 'แก้ไขรายการยาติดตามวันหมดอายุ' : 'เพิ่มรายการยาติดตามวันหมดอายุ'}
+              {itemToEdit ? 'แก้ไขรายการ Shelve track (manual)' : 'เพิ่มรายการ Shelve track (manual)'}
             </h2>
             <p className="text-emerald-100 text-sm mt-1">
-              {itemToEdit ? 'แก้ไขรายละเอียดเวชภัณฑ์ที่บันทึกเพื่อติดตามวันหมดอายุ' : 'เพิ่มรายการเวชภัณฑ์ที่เบิกไปแล้ว เพื่อติดตามวันหมดอายุ'}
+              {itemToEdit ? 'แก้ไขรายละเอียดเวชภัณฑ์ที่บันทึกเพื่อติดตามวันหมดอายุ (Shelve track)' : 'เพิ่มรายการเวชภัณฑ์ที่เบิกไปแล้ว เพื่อติดตามวันหมดอายุ (Shelve track)'}
             </p>
           </div>
           <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors">
