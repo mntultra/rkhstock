@@ -665,7 +665,7 @@ export default function Dashboard() {
               <div className="absolute top-0 right-0 -mt-4 -mr-4 w-28 h-28 bg-emerald-500/10 rounded-full blur-xl group-hover:scale-125 transition-transform" />
               <div className="flex justify-between items-start">
                 <div>
-                  <span className="text-[11px] text-emerald-300 font-extrabold uppercase tracking-wider block">มูลค่าคลังเวชภัณฑ์คงเหลือรวม</span>
+                  <span className="text-[11px] text-emerald-300 font-extrabold uppercase tracking-wider block">มูลค่าคงคลังรวม</span>
                   <span className="text-2xl sm:text-3xl font-black tracking-tight mt-2 block font-sans">
                     ฿{stats.totalStockValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
@@ -675,8 +675,8 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="mt-6 pt-4 border-t border-emerald-700/50 flex justify-between items-center text-xs text-emerald-200">
-                <span className="font-semibold">ยอดคงคลังรวม</span>
-                <span className="font-black text-white">{stats.totalInHandQty.toLocaleString()} ชิ้น</span>
+                <span className="font-semibold">จำนวนหน่วยคงคลังรวม</span>
+                <span className="font-black text-white">{stats.totalInHandQty.toLocaleString()} หน่วย</span>
               </div>
             </div>
 
@@ -684,9 +684,9 @@ export default function Dashboard() {
             <div className="bg-white hover:bg-emerald-50/10 p-6 rounded-3xl shadow-sm hover:shadow-md border border-emerald-100/50 transform hover:-translate-y-1 transition-all duration-300 group flex flex-col justify-between">
               <div className="flex justify-between items-start">
                 <div>
-                  <span className="text-[11px] text-emerald-800/60 font-extrabold uppercase tracking-wider block">รายการเวชภัณฑ์ & ล็อตคงคลัง</span>
+                  <span className="text-[11px] text-emerald-800/60 font-extrabold uppercase tracking-wider block">จำนวนรายการเวชภัณฑ์</span>
                   <span className="text-2xl sm:text-3xl font-black text-emerald-950 mt-2 block">
-                    {stats.totalActiveProducts} <span className="text-xs text-emerald-600 font-medium">รายการ</span>
+                    {stats.totalActiveProducts.toLocaleString()} <span className="text-xs text-emerald-600 font-medium">รายการ</span>
                   </span>
                 </div>
                 <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-sm shrink-0">
@@ -694,8 +694,8 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="mt-6 pt-4 border-t border-emerald-50 flex justify-between items-center text-xs text-emerald-800/60">
-                <span className="font-semibold">ล็อตเวชภัณฑ์ที่ยังไม่หมดอายุ</span>
-                <span className="font-black text-emerald-950">{stats.totalActiveLots} ล็อต</span>
+                <span className="font-semibold">จำนวนล็อตคงคลัง (ไม่หมดอายุ)</span>
+                <span className="font-black text-emerald-950">{stats.totalActiveLots.toLocaleString()} ล็อต</span>
               </div>
             </div>
 
@@ -703,9 +703,9 @@ export default function Dashboard() {
             <div className="bg-white hover:bg-amber-50/10 p-6 rounded-3xl shadow-sm hover:shadow-md border border-emerald-100/50 transform hover:-translate-y-1 transition-all duration-300 group flex flex-col justify-between">
               <div className="flex justify-between items-start">
                 <div>
-                  <span className="text-[11px] text-amber-800/70 font-extrabold uppercase tracking-wider block">รายการยืมค้างส่งคืน (Borrows)</span>
+                  <span className="text-[11px] text-amber-800/70 font-extrabold uppercase tracking-wider block">จำนวนรายการยืมค้างส่งคืน</span>
                   <span className={`text-2xl sm:text-3xl font-black mt-2 block ${stats.activeBorrowings > 0 ? 'text-amber-600 animate-pulse' : 'text-emerald-800'}`}>
-                    {stats.activeBorrowings} <span className="text-xs text-amber-600 font-medium">รายการ</span>
+                    {stats.activeBorrowings.toLocaleString()} <span className="text-xs text-amber-600 font-medium">รายการ</span>
                   </span>
                 </div>
                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm shrink-0 ${stats.activeBorrowings > 0 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
@@ -724,9 +724,9 @@ export default function Dashboard() {
             <div className="bg-white hover:bg-blue-50/10 p-6 rounded-3xl shadow-sm hover:shadow-md border border-emerald-100/50 transform hover:-translate-y-1 transition-all duration-300 group flex flex-col justify-between">
               <div className="flex justify-between items-start">
                 <div>
-                  <span className="text-[11px] text-blue-800/70 font-extrabold uppercase tracking-wider block">ใบเบิกที่รอจัดจ่ายเวชภัณฑ์</span>
+                  <span className="text-[11px] text-blue-800/70 font-extrabold uppercase tracking-wider block">จำนวนใบเบิกรอรับเข้าคลัง</span>
                   <span className={`text-2xl sm:text-3xl font-black mt-2 block ${stats.pendingRequisitions > 0 ? 'text-blue-600' : 'text-emerald-800'}`}>
-                    {stats.pendingRequisitions} <span className="text-xs text-blue-600 font-medium">เอกสาร</span>
+                    {stats.pendingRequisitions.toLocaleString()} <span className="text-xs text-blue-600 font-medium">ใบเบิก</span>
                   </span>
                 </div>
                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm shrink-0 ${stats.pendingRequisitions > 0 ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
@@ -759,9 +759,9 @@ export default function Dashboard() {
                   {/* Receive Monthly */}
                   <div className="bg-emerald-50/40 hover:bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex flex-col justify-between transition-all duration-300 transform hover:-translate-y-1">
                     <span className="text-2xl font-black text-emerald-700 block">
-                      {stats.recentReceives}
+                      {stats.recentReceives.toLocaleString()}
                     </span>
-                    <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider mt-1 block">ครั้ง</span>
+                    <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider mt-1 block">ครั้ง (ใบรับ)</span>
                     <span className="text-xs text-emerald-950 font-extrabold mt-3 flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> รับเวชภัณฑ์เข้า
                     </span>
@@ -770,9 +770,9 @@ export default function Dashboard() {
                   {/* Issue Monthly */}
                   <div className="bg-blue-50/40 hover:bg-blue-50 border border-blue-100 rounded-2xl p-4 flex flex-col justify-between transition-all duration-300 transform hover:-translate-y-1">
                     <span className="text-2xl font-black text-blue-600 block">
-                      {stats.recentIssues}
+                      {stats.recentIssues.toLocaleString()}
                     </span>
-                    <span className="text-[10px] text-blue-500 font-bold uppercase tracking-wider mt-1 block">ครั้ง</span>
+                    <span className="text-[10px] text-blue-500 font-bold uppercase tracking-wider mt-1 block">ครั้ง (ใบจ่าย)</span>
                     <span className="text-xs text-blue-900/80 font-extrabold mt-3 flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> ตัดจ่ายเวชภัณฑ์ออก
                     </span>
@@ -781,20 +781,20 @@ export default function Dashboard() {
                   {/* Disposal Monthly */}
                   <div className="bg-red-50/40 hover:bg-red-50 border border-red-100 rounded-2xl p-4 flex flex-col justify-between transition-all duration-300 transform hover:-translate-y-1">
                     <span className="text-2xl font-black text-red-600 block">
-                      {stats.recentDisposals}
+                      {stats.recentDisposals.toLocaleString()}
                     </span>
                     <span className="text-[10px] text-red-500 font-bold uppercase tracking-wider mt-1 block">รายการ</span>
                     <span className="text-xs text-red-900/80 font-extrabold mt-3 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> ตัดจำหน่าย/ชำรุด
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> ตัดจำหน่าย/ทำลาย
                     </span>
                   </div>
 
                   {/* Critical Alerts */}
                   <div className="bg-rose-50/40 hover:bg-rose-50 border border-rose-100 rounded-2xl p-4 flex flex-col justify-between transition-all duration-300 transform hover:-translate-y-1">
                     <span className="text-2xl font-black text-rose-600 block">
-                      {stats.criticalAlerts}
+                      {stats.criticalAlerts.toLocaleString()}
                     </span>
-                    <span className="text-[10px] text-rose-500 font-bold uppercase tracking-wider mt-1 block">ล็อตด่วน</span>
+                    <span className="text-[10px] text-rose-500 font-bold uppercase tracking-wider mt-1 block">รายการ</span>
                     <span className="text-xs text-rose-900/80 font-extrabold mt-3 flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span> แจ้งเตือนคลังวิกฤต
                     </span>
