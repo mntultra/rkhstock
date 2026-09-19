@@ -101,6 +101,7 @@ export default function PrintMovement() {
           mov.receiver,
           mov.approver_main_warehouse,
           mov.issuer_main_warehouse,
+          mov.issuer_sub_warehouse,
           mov.voided_by
         ].filter(Boolean);
         let officersMap: Record<string, string> = {};
@@ -120,7 +121,9 @@ export default function PrintMovement() {
 
         // Attach officer names back to movement object
         mov.actor = {
-          full_name: officersMap[mov.actor_id] || officersMap[mov.receiver] || mov.receiver || mov.issuer_main_warehouse || ''
+          full_name: mov.movement_type === 'ISSUE'
+            ? (officersMap[mov.issuer_sub_warehouse] || '')
+            : (officersMap[mov.actor_id] || officersMap[mov.receiver] || (typeof mov.receiver === 'string' ? mov.receiver : '') || '')
         };
         mov.created_by_user = { full_name: '' };
         mov.voided_by_user = { full_name: officersMap[mov.voided_by] || '' };

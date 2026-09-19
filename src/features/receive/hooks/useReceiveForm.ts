@@ -697,7 +697,70 @@ export function useReceiveForm() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("ไม่พบเซสชั่นการล็อกอิน");
 
-      const creator = officers.find(s => s.id === user.id);
+      // ─── Resolve Logged-in User to Officer ID (สำหรับ actor_id) ────────────────
+      let loggedInOfficerId: string | null = officers.find(s => s.id === user.id)?.id || null;
+      let loggedInOfficerPosition: string | null = officers.find(s => s.id === user.id)?.position || null;
+
+      if (!loggedInOfficerId) {
+        const { data: userProfile } = await supabase
+          .from('users')
+          .select('id, full_name, email, officer_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (userProfile?.officer_id) {
+          loggedInOfficerId = userProfile.officer_id;
+          const found = officers.find(s => s.id === userProfile.officer_id);
+          if (found) loggedInOfficerPosition = found.position || null;
+        } else {
+          const userEmail = user.email || userProfile?.email;
+          const userFullName = userProfile?.full_name || user.user_metadata?.full_name || user.email || '';
+
+          let existingOfficer: { id: string; position?: string | null } | null = null;
+          if (userEmail) {
+            const { data: offByEmail } = await supabase.from('officers').select('id, position').eq('email', userEmail).maybeSingle();
+            if (offByEmail) existingOfficer = offByEmail;
+          }
+          if (!existingOfficer && userFullName) {
+            const { data: offByName } = await supabase.from('officers').select('id, position').eq('full_name', userFullName).maybeSingle();
+            if (offByName) existingOfficer = offByName;
+          }
+          if (!existingOfficer) {
+            const { data: offById } = await supabase.from('officers').select('id, position').eq('id', user.id).maybeSingle();
+            if (offById) existingOfficer = offById;
+          }
+
+          if (existingOfficer) {
+            loggedInOfficerId = existingOfficer.id;
+            loggedInOfficerPosition = existingOfficer.position || null;
+            await supabase.from('users').update({ officer_id: existingOfficer.id }).eq('id', user.id);
+          } else {
+            const newOfficer = {
+              id: user.id,
+              full_name: userFullName || 'ผู้ใช้งานระบบ',
+              email: userEmail || null,
+              is_active: true
+            };
+            const { data: createdOff, error: createErr } = await supabase
+              .from('officers')
+              .insert(newOfficer)
+              .select('id, position')
+              .single();
+
+            if (!createErr && createdOff) {
+              loggedInOfficerId = createdOff.id;
+              loggedInOfficerPosition = createdOff.position || null;
+              await supabase.from('users').update({ officer_id: createdOff.id }).eq('id', user.id);
+            } else {
+              const { data: fallbackOff } = await supabase.from('officers').select('id, position').eq('id', user.id).maybeSingle();
+              if (fallbackOff) {
+                loggedInOfficerId = fallbackOff.id;
+                loggedInOfficerPosition = fallbackOff.position || null;
+              }
+            }
+          }
+        }
+      }
 
       // 1. สร้างหัวใบรับเพียงใบเดียว (1 Movement)
       const { data: movement, error: movError } = await supabase
@@ -711,13 +774,14 @@ export function useReceiveForm() {
           reference_doc_date: refDocDate || null,
           from_warehouse_id: fromWarehouseId || null,
           to_warehouse_id: warehouseId,
+          actor_id: loggedInOfficerId,
           receiver: actorId,
           approver_main_warehouse: approverMainId || null,
           issuer_main_warehouse: issuerMainId || null,
           note: headerNote || null,
           requisition_id: selectedRequisitionId || null,
           created_by: user.id,
-          created_by_position: creator?.position || null
+          created_by_position: loggedInOfficerPosition
         })
         .select('id')
         .single();
