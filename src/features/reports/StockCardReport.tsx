@@ -5,10 +5,33 @@ import { supabase } from '@/lib/supabase';
 import { FileSpreadsheet, Printer, Search, Calendar } from 'lucide-react';
 import { ProductSearchResult } from '@/types';
 
+// ฟังก์ชันแปลงวันที่เป็น พ.ศ. (DD/MM/YYYY)
+const formatThaiDate = (dateInput: string | Date | null | undefined): string => {
+  if (!dateInput) return '-';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '-';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear() + 543;
+  return `${day}/${month}/${year}`;
+};
+
+// ฟังก์ชันแปลงวัน-เวลาพิมพ์เอกสารเป็น พ.ศ. (เมื่อวันที่ dd/m/yyyy เวลา hh:mm:ss)
+const getPrintDateTimeText = (date: Date = new Date()): string => {
+  const d = date.getDate();
+  const m = date.getMonth() + 1;
+  const y = date.getFullYear() + 543;
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  const ss = String(date.getSeconds()).padStart(2, '0');
+  return `เมื่อวันที่ ${d}/${m}/${y} เวลา ${hh}:${mm}:${ss}`;
+};
+
 export default function StockCardReport() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<ProductSearchResult | null>(null);
+  const [printTimestamp, setPrintTimestamp] = useState<string>(() => getPrintDateTimeText());
   
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
@@ -125,7 +148,7 @@ export default function StockCardReport() {
         .select(`
           qty,
           lots (lot_number),
-          stock_movements!inner(id, doc_no, reference_doc_no, movement_type, doc_date, created_by, is_voided)
+          stock_movements!inner(id, doc_no, reference_doc_no, reference_doc_date, movement_type, doc_date, created_by, is_voided, note)
         `)
         .eq('product_id', selectedProduct.id)
         .eq('stock_movements.is_voided', false)
@@ -174,11 +197,57 @@ export default function StockCardReport() {
   };
 
   const handlePrint = () => {
-    window.print();
+    setPrintTimestamp(getPrintDateTimeText(new Date()));
+    setTimeout(() => {
+      window.print();
+    }, 50);
   };
 
   return (
     <div className="max-w-full mx-auto space-y-6 animate-fade-in-up font-sans select-none">
+      {/* สไตล์การพิมพ์เอกสาร Stock Card */}
+      <style>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 10mm 10mm 14mm 10mm !important;
+            @bottom-left {
+              content: "เอกสารนี้พิมพ์จากระบบ RKHSTOCK ${printTimestamp}";
+              font-size: 8pt;
+              font-family: inherit;
+              color: #4b5563;
+            }
+            @bottom-right {
+              content: "หน้าที่ " counter(page) " จาก " counter(pages);
+              font-size: 8pt;
+              font-family: inherit;
+              color: #4b5563;
+            }
+          }
+
+          /* ซ่อนส่วนที่ไม่ต้องการพิมพ์ */
+          aside, header, nav, .no-print, button {
+            display: none !important;
+          }
+
+          /* thead ให้วนซ้ำหัวตารางในทุกหน้า */
+          thead {
+            display: table-header-group !important;
+          }
+
+          /* tfoot ให้แสดงเฉพาะหน้าสุดท้าย ไม่วนซ้ำทุกหน้า */
+          tfoot {
+            display: table-row-group !important;
+          }
+
+          /* ป้องกัน tr แตกแถวข้ามหน้าแบบครึ่งๆ กลางๆ */
+          tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+        }
+      `}</style>
+
       {/* Non-printable header */}
       <div className="glass p-6 sm:p-8 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
         <div className="flex items-center gap-4">
@@ -295,52 +364,52 @@ export default function StockCardReport() {
 
       {/* Printable Area */}
       {(movements.length > 0 || balanceBroughtForward > 0) && (
-        <div className="bg-white p-8 rounded-none md:rounded-3xl shadow-none md:shadow-xl print:shadow-none print:p-0">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-black mb-1 text-emerald-950">บัญชีคุมเวชภัณฑ์ (Stock Card)</h2>
-            <p className="text-sm font-bold text-gray-600">
-              ชื่อเวชภัณฑ์: <span className="text-emerald-700">{selectedProduct?.generic_name}</span>
+        <div className="bg-white p-4 sm:p-6 rounded-none md:rounded-2xl shadow-none md:shadow-lg print:shadow-none print:p-0">
+          <div className="text-center mb-4">
+            <h2 className="text-xl font-black mb-1 text-emerald-950">บัญชีคุมเวชภัณฑ์ (Stock Card)</h2>
+            <p className="text-sm font-bold text-gray-700">
+              ชื่อเวชภัณฑ์: <span className="text-emerald-800">{selectedProduct?.generic_name}</span>
             </p>
-            <p className="text-xs text-gray-500 mt-1 font-bold">
-              ช่วงวันที่ {formatDate(startDate)} ถึง {formatDate(endDate)} 
+            <p className="text-xs text-gray-500 mt-0.5 font-bold">
+              ช่วงวันที่ {formatThaiDate(startDate)} ถึง {formatThaiDate(endDate)} 
               {selectedFiscalYear && ` (ปีงบประมาณ ${fiscalYears.find(fy => fy.id === selectedFiscalYear)?.year_name})`}
             </p>
           </div>
 
-          <table className="w-full text-sm border-collapse border border-gray-300">
+          <table className="w-full text-xs border-collapse border border-gray-300">
             <thead>
-              <tr className="bg-emerald-50 print:bg-emerald-50 text-emerald-950">
-                <th className="border border-gray-300 p-2 w-28 text-center font-bold">วันที่</th>
-                <th className="border border-gray-300 p-2 w-36 text-center font-bold">ประเภทรายการ</th>
-                <th className="border border-gray-300 p-2 w-32 text-center font-bold">Lot Number</th>
-                <th className="border border-gray-300 p-2 text-center text-green-800 w-24 font-bold">รับ (In)</th>
-                <th className="border border-gray-300 p-2 text-center text-red-800 w-24 font-bold">จ่าย (Out)</th>
-                <th className="border border-gray-300 p-2 text-center text-indigo-900 w-24 font-bold">คงเหลือสะสม</th>
-                <th className="border border-gray-300 p-2 text-center w-44 font-bold">เลขที่เอกสาร / หมายเหตุ</th>
+              <tr className="bg-emerald-50 print:bg-emerald-50 text-emerald-950 text-xs">
+                <th className="border border-gray-300 py-1.5 px-2 w-24 text-center font-bold">วันที่</th>
+                <th className="border border-gray-300 py-1.5 px-2 w-32 text-center font-bold">ประเภทรายการ</th>
+                <th className="border border-gray-300 py-1.5 px-2 w-28 text-center font-bold">Lot Number</th>
+                <th className="border border-gray-300 py-1.5 px-2 text-center text-green-800 w-20 font-bold">รับ (In)</th>
+                <th className="border border-gray-300 py-1.5 px-2 text-center text-red-800 w-20 font-bold">จ่าย (Out)</th>
+                <th className="border border-gray-300 py-1.5 px-2 text-center text-indigo-900 w-24 font-bold">คงเหลือสะสม</th>
+                <th className="border border-gray-300 py-1.5 px-2 text-center w-52 font-bold">เลขที่เอกสาร / เอกสารอ้างอิง</th>
               </tr>
             </thead>
             <tbody>
               {/* แถวยอดยกมา (Balance Brought Forward) */}
-              <tr className="bg-emerald-50/20 font-bold border-b border-gray-300">
-                <td className="border border-gray-300 p-2 text-center text-xs text-gray-400">
+              <tr className="bg-emerald-50/20 font-bold border-b border-gray-300 text-xs">
+                <td className="border border-gray-300 py-1 px-2 text-center text-[11px] text-gray-400">
                   -
                 </td>
-                <td className="border border-gray-300 p-2 text-center text-xs text-emerald-800">
+                <td className="border border-gray-300 py-1 px-2 text-center text-[11px] text-emerald-800">
                   ยอดยกมา (Brought Forward)
                 </td>
-                <td className="border border-gray-300 p-2 text-center font-mono text-xs text-gray-400">
+                <td className="border border-gray-300 py-1 px-2 text-center font-mono text-[11px] text-gray-400">
                   -
                 </td>
-                <td className="border border-gray-300 p-2 text-right text-gray-400">
+                <td className="border border-gray-300 py-1 px-2 text-right text-gray-400">
                   -
                 </td>
-                <td className="border border-gray-300 p-2 text-right text-gray-400">
+                <td className="border border-gray-300 py-1 px-2 text-right text-gray-400">
                   -
                 </td>
-                <td className="border border-gray-300 p-2 text-right font-black text-emerald-800 bg-emerald-50/10">
+                <td className="border border-gray-300 py-1 px-2 text-right font-black text-emerald-800 bg-emerald-50/10">
                   {balanceBroughtForward.toLocaleString()}
                 </td>
-                <td className="border border-gray-300 p-2 text-center text-[10px] text-emerald-700/80 font-bold">
+                <td className="border border-gray-300 py-1 px-2 text-center text-[10px] text-emerald-700/80 font-bold">
                   ยอดยกมาจากปีงบประมาณเดิม/ก่อนหน้าช่วงเวลา
                 </td>
               </tr>
@@ -369,53 +438,78 @@ export default function StockCardReport() {
                 if (isDispose) typeLabel = 'ทำลาย/ตัดจ่ายชำรุด';
 
                 return (
-                  <tr key={idx} className="hover:bg-gray-50 print:hover:bg-white transition-colors">
-                    <td className="border border-gray-300 p-2 text-center text-xs">
-                      {formatDate(m.stock_movements.doc_date)}
+                  <tr key={idx} className="hover:bg-gray-50 print:hover:bg-white transition-colors text-xs">
+                    <td className="border border-gray-300 py-1 px-2 text-center text-[11px]">
+                      {formatThaiDate(m.stock_movements.doc_date)}
                     </td>
-                    <td className="border border-gray-300 p-2 text-center font-semibold text-xs">
+                    <td className="border border-gray-300 py-1 px-2 text-center font-medium text-[11px]">
                       {typeLabel}
                     </td>
-                    <td className="border border-gray-300 p-2 text-center font-mono text-xs text-gray-700">
+                    <td className="border border-gray-300 py-1 px-2 text-center font-mono text-[11px] text-gray-700">
                       {m.lot_number || '-'}
                     </td>
-                    <td className="border border-gray-300 p-2 text-right font-bold text-green-700">
+                    <td className="border border-gray-300 py-1 px-2 text-right font-bold text-green-700">
                       {qtyIn > 0 ? qtyIn.toLocaleString() : '-'}
                     </td>
-                    <td className="border border-gray-300 p-2 text-right font-bold text-red-700">
+                    <td className="border border-gray-300 py-1 px-2 text-right font-bold text-red-700">
                       {qtyOut > 0 ? qtyOut.toLocaleString() : '-'}
                     </td>
-                    <td className="border border-gray-300 p-2 text-right font-black text-emerald-950 bg-emerald-50/5">
+                    <td className="border border-gray-300 py-1 px-2 text-right font-black text-emerald-950 bg-emerald-50/5">
                       {m.running_balance.toLocaleString()}
                     </td>
-                    <td className="border border-gray-300 p-2 text-center text-[10px] text-gray-500 font-mono">
-                      {m.stock_movements.doc_no || m.stock_movements.reference_doc_no || `REF-${m.stock_movements.id.substring(0, 8).toUpperCase()}`}
+                    <td className="border border-gray-300 py-1 px-2 text-left text-xs leading-snug">
+                      {/* เลขที่เอกสารระบบ */}
+                      {m.stock_movements.doc_no && (
+                        <div className="font-mono text-gray-800">
+                          {m.stock_movements.doc_no}
+                        </div>
+                      )}
+
+                      {/* ข้อมูลเอกสารอ้างอิง (ใบจ่าย / ใบนำส่ง) */}
+                      {m.stock_movements.reference_doc_no ? (
+                        <div className="text-[11px] text-emerald-900">
+                          <span className="text-gray-500">{isReceive ? 'ใบจ่าย/นำส่ง: ' : 'อ้างอิง: '}</span>
+                          <span className="font-mono text-emerald-800">{m.stock_movements.reference_doc_no}</span>
+                          {m.stock_movements.reference_doc_date && (
+                            <span className="text-[10px] text-gray-500 ml-1">
+                              ({formatThaiDate(m.stock_movements.reference_doc_date)})
+                            </span>
+                          )}
+                        </div>
+                      ) : m.stock_movements.reference_doc_date ? (
+                        <div className="text-[10px] text-gray-500">
+                          ลงวันที่: {formatThaiDate(m.stock_movements.reference_doc_date)}
+                        </div>
+                      ) : !m.stock_movements.doc_no ? (
+                        <div className="text-[10px] text-gray-400 font-mono">
+                          {`REF-${m.stock_movements.id.substring(0, 8).toUpperCase()}`}
+                        </div>
+                      ) : null}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
             <tfoot>
-              <tr className="bg-emerald-50/20 font-bold print:bg-emerald-50/10">
-                <td colSpan={3} className="border border-gray-300 p-2 text-right text-emerald-950">รวมรับ/จ่ายสะสมงวดนี้:</td>
-                <td className="border border-gray-300 p-2 text-right text-green-700 font-extrabold">
+              <tr className="bg-emerald-50/20 font-bold print:bg-emerald-50/10 text-xs">
+                <td colSpan={3} className="border border-gray-300 py-1.5 px-2 text-right text-emerald-950">รวมรับ/จ่ายสะสมงวดนี้:</td>
+                <td className="border border-gray-300 py-1.5 px-2 text-right text-green-700 font-extrabold">
                   {movements.reduce((sum, m) => sum + (m.stock_movements.movement_type === 'RECEIVE' || (m.stock_movements.movement_type === 'ADJUST' && m.qty > 0) ? Math.abs(m.qty) : 0), 0).toLocaleString()}
                 </td>
-                <td className="border border-gray-300 p-2 text-right text-red-700 font-extrabold">
+                <td className="border border-gray-300 py-1.5 px-2 text-right text-red-700 font-extrabold">
                   {movements.reduce((sum, m) => sum + (m.stock_movements.movement_type === 'ISSUE' || m.stock_movements.movement_type === 'DISPOSE' || m.stock_movements.movement_type === 'EXPIRED' || (m.stock_movements.movement_type === 'ADJUST' && m.qty < 0) ? Math.abs(m.qty) : 0), 0).toLocaleString()}
                 </td>
-                <td className="border border-gray-300 p-2 text-right text-emerald-900 bg-emerald-100/30 font-black">
+                <td className="border border-gray-300 py-1.5 px-2 text-right text-emerald-900 bg-emerald-100/30 font-black">
                   {(movements.length > 0 ? movements[movements.length - 1].running_balance : balanceBroughtForward).toLocaleString()}
                 </td>
-                <td className="border border-gray-300 p-2 text-center text-xs text-emerald-900 font-black">
+                <td className="border border-gray-300 py-1.5 px-2 text-center text-xs text-emerald-900 font-black">
                   ยอดยกไป (Carried Forward)
                 </td>
               </tr>
             </tfoot>
           </table>
-          <div className="mt-8 text-right text-sm print:block hidden">
+          <div className="mt-4 text-right text-xs print:block hidden">
             <p>ผู้พิมพ์รายงาน: _____________________</p>
-            <p className="text-xs text-gray-400 mt-1">วันที่พิมพ์: {new Date().toLocaleString('th-TH')}</p>
           </div>
         </div>
       )}
