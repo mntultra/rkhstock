@@ -36,6 +36,24 @@ function getRoleDisplay(role: string | null | undefined): string {
   return role?.toUpperCase() === 'ADMIN' ? 'Admin' : 'User';
 }
 
+function formatQuantityWithPack(qty: number, packSize: number | null | undefined, unitName: string): string {
+  const formattedQty = Math.abs(qty).toLocaleString();
+  const pack = Number(packSize) || 1;
+  if (pack > 1) {
+    return `${formattedQty} x ${pack} ${unitName}`;
+  }
+  return `${formattedQty} ${unitName}`;
+}
+
+function formatBalanceQuantity(qty: number, packSize: number | null | undefined, unitName: string): string {
+  const formattedQty = Math.abs(qty).toLocaleString();
+  const pack = Number(packSize) || 1;
+  if (pack > 1) {
+    return `${formattedQty}x${pack} ${unitName}`;
+  }
+  return `${formattedQty} ${unitName}`;
+}
+
 function InfoRow({ label, children, muted = false }: { label: string; children: ReactNode; muted?: boolean }) {
   return (
     <div className="grid grid-cols-[9.5rem_1fr] gap-x-3 items-start">
@@ -177,6 +195,84 @@ export default function PrintMovement() {
           mov.requisition = null;
         }
 
+        // Calculate historical stock balance for ISSUE items in from_warehouse
+        if (mov.movement_type === 'ISSUE' && mov.from_warehouse_id && movItems && movItems.length > 0) {
+          const warehouseId = mov.from_warehouse_id;
+          const productIds = Array.from(new Set(movItems.map((it: any) => it.product_id).filter(Boolean)));
+
+          if (productIds.length > 0) {
+            const { data: historyItems, error: historyError } = await supabase
+              .from('stock_movement_items')
+              .select(`
+                id,
+                product_id,
+                qty,
+                created_at,
+                movement_id,
+                stock_movements!inner(
+                  id,
+                  movement_type,
+                  doc_date,
+                  created_at,
+                  from_warehouse_id,
+                  to_warehouse_id,
+                  is_voided
+                )
+              `)
+              .in('product_id', productIds);
+
+            if (!historyError && historyItems) {
+              const itemsByProduct: Record<string, any[]> = {};
+              for (const hItem of historyItems) {
+                const sm = (hItem as any).stock_movements;
+                // Exclude voided movements except this movement itself if voided
+                if (sm.is_voided && sm.id !== mov.id) continue;
+
+                const isIn = sm.to_warehouse_id === warehouseId;
+                const isOut = sm.from_warehouse_id === warehouseId;
+                if (!isIn && !isOut) continue;
+
+                if (!itemsByProduct[hItem.product_id]) {
+                  itemsByProduct[hItem.product_id] = [];
+                }
+                itemsByProduct[hItem.product_id].push(hItem);
+              }
+
+              const itemBalanceMap: Record<string, number> = {};
+              for (const prodId of productIds) {
+                const pItems = itemsByProduct[prodId] || [];
+                pItems.sort((a: any, b: any) => {
+                  const timeA = new Date(a.stock_movements.created_at || a.created_at).getTime();
+                  const timeB = new Date(b.stock_movements.created_at || b.created_at).getTime();
+                  if (timeA !== timeB) return timeA - timeB;
+                  return a.id.localeCompare(b.id);
+                });
+
+                let running = 0;
+                for (const item of pItems) {
+                  const sm = item.stock_movements;
+                  let delta = 0;
+                  if (sm.movement_type === 'ADJUST') {
+                    delta = item.qty || 0;
+                  } else if (sm.to_warehouse_id === warehouseId) {
+                    delta = Math.abs(item.qty || 0);
+                  } else if (sm.from_warehouse_id === warehouseId) {
+                    delta = -Math.abs(item.qty || 0);
+                  }
+                  running += delta;
+                  if (item.movement_id === mov.id) {
+                    itemBalanceMap[item.id] = running;
+                  }
+                }
+              }
+
+              movItems.forEach((it: any) => {
+                it.balanceAfter = itemBalanceMap[it.id] ?? null;
+              });
+            }
+          }
+        }
+
         // Sort items by: dosage form > HAD / COLD > name
         const sortedItems = (movItems || []).sort((a: any, b: any) => {
           const dfA = a.product?.master_dosage_forms?.abbreviation || a.product?.master_dosage_forms?.name_en || '';
@@ -238,7 +334,23 @@ export default function PrintMovement() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-200 py-8 print:bg-white print:py-0 print:m-0 text-black" style={{ fontFamily: "'Noto Sans Thai', sans-serif" }}>
+    <div className="min-h-screen bg-gray-200 py-8 print:bg-white print:py-0 print:m-0 text-black print-document" style={{ fontFamily: "'Noto Sans Thai', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800;900&display=swap');
+        
+        .print-document,
+        .print-document *,
+        .print-document *:before,
+        .print-document *:after {
+          font-family: 'Noto Sans Thai', sans-serif !important;
+        }
+
+        @media print {
+          body, html, #root, .print-document, .print-document * {
+            font-family: 'Noto Sans Thai', sans-serif !important;
+          }
+        }
+      `}</style>
 
       {/* Control Bar (Hidden in Print) */}
       <div className="max-w-4xl mx-auto mb-6 flex justify-between items-center print:hidden bg-white p-4 rounded-xl shadow-sm">
@@ -261,7 +373,7 @@ export default function PrintMovement() {
       </div>
 
       {/* A4 Document Area */}
-      <div className="max-w-4xl mx-auto bg-white p-10 sm:p-14 shadow-2xl print:shadow-none print:p-0 relative">
+      <div className="max-w-4xl mx-auto bg-white p-10 sm:p-14 shadow-2xl print:shadow-none print:p-0 relative" style={{ fontFamily: "'Noto Sans Thai', sans-serif" }}>
 
         {/* Void Watermark */}
         {movement.is_voided && (
@@ -280,7 +392,7 @@ export default function PrintMovement() {
               <p className="text-gray-600 font-medium">กลุ่มงานเภสัชกรรมและคุ้มครองผู้บริโภค โรงพยาบาลร่องคำ</p>
             </div>
             <div className="text-right space-y-1">
-              <p className="text-xl font-bold font-sans">{docRef}</p>
+              <p className="text-xl font-bold">{docRef}</p>
               <p className="text-sm font-medium">วันที่ทำรายการ: {new Date(movement.created_at).toLocaleString('th-TH')}</p>
               {movement.is_voided && (
                 <div className="inline-flex items-center gap-1 bg-red-100 text-red-800 px-2 py-1 rounded font-bold text-xs border border-red-300">
@@ -391,33 +503,46 @@ export default function PrintMovement() {
           <table className="w-full text-sm border-collapse mb-10">
             <thead>
               <tr className="border-y-2 border-gray-900 bg-gray-50/50 print:bg-transparent">
-                <th className="py-3 px-1 text-center w-10 font-bold">ลำดับ</th>
-                <th className="py-3 px-1 text-left w-20 font-bold">รหัส</th>
-                <th className="py-3 px-2 text-left w-72 font-bold">รายการเวชภัณฑ์</th>
-                <th className="py-3 px-1 text-left w-20 font-bold">รูปแบบ</th>
-                <th className="py-3 px-1 text-right w-28 font-bold">จำนวน</th>
-                <th className="py-3 px-1 text-left w-24 font-bold">Lot No.</th>
-                <th className="py-3 px-1 text-left w-24 font-bold">Exp. Date</th>
+                <th className="py-3 px-1 text-center w-9 font-bold">ลำดับ</th>
+                <th className="py-3 px-1 text-left w-16 font-bold">รหัส</th>
+                <th className="py-3 px-2 text-left font-bold min-w-[170px]">รายการเวชภัณฑ์</th>
+                <th className="py-3 px-1 text-left w-16 font-bold">รูปแบบ</th>
+                <th className="py-3 px-1 text-right w-24 font-bold">จำนวน</th>
+                <th className="py-3 px-1 text-left w-20 font-bold">Lot No.</th>
+                <th className="py-3 px-1 text-left w-20 font-bold">Exp. Date</th>
                 <th className="py-3 px-1 text-right w-20 font-bold">ราคา/หน่วย</th>
+                {isIssue && (
+                  <th className="py-3 px-1 text-right w-24 font-bold" title="จำนวนยอดคงเหลือจริงหลังจากตัดเบิกรายการนั้นๆ">
+                    คงเหลือหลังจ่าย
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {items.map((item, index) => {
                 const dosageFormDisplay = getDosageFormDisplay(item.product);
-                const packSize = item.pack_size || 1;
+                const packSize = Number(item.pack_size) || Number(item.product?.pack_size) || 1;
                 const unitName = item.unit_name || item.product?.unit_id?.name || 'ชิ้น';
-                const qtyDisplay = `${Math.abs(item.qty).toLocaleString()} x ${packSize} ${unitName}`;
+                const qtyDisplay = formatQuantityWithPack(item.qty, packSize, unitName);
+                const balanceDisplay = item.balanceAfter != null
+                  ? formatBalanceQuantity(item.balanceAfter, packSize, unitName)
+                  : '-';
 
                 return (
                   <tr key={item.id} className="align-top">
                     <td className="py-3 px-1 text-center text-gray-600">{index + 1}</td>
-                    <td className="py-3 px-1 font-sans text-gray-500 text-xs break-all">{item.product?.drug_code || '-'}</td>
+                    <td className="py-3 px-1 text-gray-500 text-xs break-all">{item.product?.drug_code || '-'}</td>
                     <td className="py-3 px-2 font-bold text-gray-900 break-words">{item.product?.generic_name || '-'}</td>
                     <td className="py-3 px-1 text-xs">{dosageFormDisplay}</td>
                     <td className="py-3 px-1 text-right font-black text-sm whitespace-nowrap">{qtyDisplay}</td>
-                    <td className="py-3 px-1 font-sans text-xs break-all">{item.lots?.lot_number || '-'}</td>
+                    <td className="py-3 px-1 text-xs break-all">{item.lots?.lot_number || '-'}</td>
                     <td className="py-3 px-1 text-xs">{item.lots?.expiry_date ? formatDate(item.lots?.expiry_date) : '-'}</td>
                     <td className="py-3 px-1 text-right text-xs">{item.unit_price ? Number(item.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}</td>
+                    {isIssue && (
+                      <td className="py-3 px-1 text-right font-normal text-xs whitespace-nowrap text-gray-900">
+                        {balanceDisplay}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -444,6 +569,7 @@ export default function PrintMovement() {
                     : ''
                   }
                 </td>
+                {isIssue && <td className="py-4 px-1"></td>}
               </tr>
             </tfoot>
           </table>
